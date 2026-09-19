@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { usePerfil } from './hooks/usePerfil'
+import { useVersaoDisponivel } from './hooks/useVersaoDisponivel'
 import AppLayout from './components/layout/AppLayout'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
@@ -54,10 +55,42 @@ function TelaPermitida({ tela, children }: { tela: string; children: React.React
   return <>{children}</>
 }
 
+// Avisa quando saiu um deploy novo enquanto o app estava aberto (ou em
+// cache — comum no "Adicionar à Tela de Início" do Safari).
+function BannerAtualizacao() {
+  const disponivel = useVersaoDisponivel()
+  if (!disponivel) return null
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+      background: '#FFFFFF', color: '#000000',
+      padding: '10px 16px',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px',
+      flexWrap: 'wrap',
+      fontSize: '13px', fontFamily: 'DM Sans, sans-serif',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
+    }}>
+      <span style={{ fontWeight: 600 }}>Uma versão nova do sistema está disponível.</span>
+      <button
+        onClick={() => window.location.reload()}
+        style={{
+          padding: '5px 14px', borderRadius: '99px', border: 'none',
+          background: '#000000', color: '#FFFFFF', fontSize: '12px', fontWeight: 600,
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}
+      >
+        Atualizar agora
+      </button>
+    </div>
+  )
+}
+
 export default function App() {
   return (
-    <BrowserRouter basename={import.meta.env.BASE_URL}>
-      <Routes>
+    <>
+      <BannerAtualizacao />
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
+        <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/cadastro" element={<Signup />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -85,7 +118,8 @@ export default function App() {
           <Route path="/configuracoes" element={<TelaPermitida tela="configuracoes"><Configuracoes /></TelaPermitida>} />
           <Route path="/usuarios"      element={<Usuarios />} />
         </Route>
-      </Routes>
-    </BrowserRouter>
+        </Routes>
+      </BrowserRouter>
+    </>
   )
 }
