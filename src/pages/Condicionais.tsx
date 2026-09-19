@@ -251,7 +251,7 @@ export default function Condicionais() {
             style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           >
-            <motion.div ref={modalNovoRef} className="card" style={{ width: '100%', maxWidth: '560px', padding: '28px', maxHeight: '88vh', overflowY: 'auto' }}
+            <motion.div ref={modalNovoRef} className="card" style={{ width: '100%', maxWidth: '560px', padding: '28px', maxHeight: '88vh', overflowY: 'auto', overflowX: 'hidden' }}
               initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <h2 style={{ fontSize: '18px', color: '#FFFFFF' }}>Novo Condicional</h2>
@@ -289,17 +289,18 @@ export default function Condicionais() {
                         key={p.id}
                         onClick={() => { addItemNovo(p); setBuscaProduto('') }}
                         style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          padding: '8px 10px', borderRadius: '6px', border: 'none', background: 'transparent',
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
+                          width: '100%', padding: '8px 10px', borderRadius: '6px', border: 'none', background: 'transparent',
                           color: '#FFFFFF', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
                         }}
                         onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
                         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                       >
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <Package size={12} style={{ color: '#555' }} /> {p.nome}
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
+                          <Package size={12} style={{ color: '#555', flexShrink: 0 }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome}</span>
                         </span>
-                        <span style={{ color: '#A3A3A3' }}>{formatCurrency(p.preco_venda)}</span>
+                        <span style={{ color: '#A3A3A3', flexShrink: 0 }}>{formatCurrency(p.preco_venda)}</span>
                       </button>
                     ))}
                   </div>
@@ -365,7 +366,7 @@ export default function Condicionais() {
             style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           >
-            <motion.div ref={modalFecharRef} className="card" style={{ width: '100%', maxWidth: '520px', padding: '28px', maxHeight: '88vh', overflowY: 'auto' }}
+            <motion.div ref={modalFecharRef} className="card" style={{ width: '100%', maxWidth: '520px', padding: '28px', maxHeight: '88vh', overflowY: 'auto', overflowX: 'hidden' }}
               initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                 <h2 style={{ fontSize: '18px', color: '#FFFFFF' }}>Fechar Condicional</h2>
