@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="%BASE_URL%logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BarberOS — ERP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet" />
+    <script type="text/javascript">
+      // Single Page Apps for GitHub Pages — restaura a rota após redirect do 404.html
+      // https://github.com/rafgraph/spa-github-pages
+      (function (l) {
+        if (l.search[1] === '/') {
+          var decoded = l.search.slice(1).split('&').map(function (s) {
+            return s.replace(/~and~/g, '&')
+          }).join('?')
+          window.history.replaceState(null, null, l.pathname.slice(0, -1) + decoded + l.hash)
+        }
+      }(window.location))
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
