@@ -55,3 +55,13 @@ porque a versão original deu timeout de conexão no SQL Editor. Cada um desses
 Depois de rodar tudo isso: `adm@dev.com` vira super administradora da
 plataforma (sem loja própria) e usa a tela **Empresas** pra cadastrar as
 lojas clientes, e **Usuários** pra vincular o primeiro login de cada uma.
+
+## Migrations mais recentes (24 em diante)
+
+A partir daqui as migrations não estão mais numeradas nessa lista — é só
+rodar os arquivos restantes da pasta em ordem alfabética
+(`20260909000007` até o mais recente). Todas continuam idempotentes.
+
+A `20260919000001_condicional.sql` cria o recurso de **Condicional**
+(pré-venda: cliente leva produto pra casa e depois volta pra decidir o que
+fica). Não precisa de nenhum passo manual além de rodar o arquivo.

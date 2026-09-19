@@ -3,7 +3,7 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Calendar, ShoppingCart, Wallet, Users,
-  Scissors, Package, Truck, BarChart2, ArrowDownCircle, ArrowUpCircle,
+  Scissors, Package, PackageOpen, Truck, BarChart2, ArrowDownCircle, ArrowUpCircle,
   Percent, FileBarChart, FileText, ClipboardList, Settings, UserCog, LogOut, Building2, Tags,
   ChevronDown, FolderOpen, ArrowLeftRight,
 } from 'lucide-react'
@@ -46,6 +46,7 @@ const NAV_GRUPOS: { label: string; icon: typeof LayoutDashboard; items: NavItemD
     items: [
       { to: '/agenda',         icon: Calendar,        label: 'Agenda'           },
       { to: '/pdv',            icon: ShoppingCart,    label: 'PDV'              },
+      { to: '/condicional',    icon: PackageOpen,     label: 'Condicional'      },
       { to: '/caixa',          icon: Wallet,          label: 'Caixa'            },
       { to: '/financeiro',     icon: BarChart2,       label: 'Financeiro'       },
       { to: '/contas-pagar',   icon: ArrowUpCircle,   label: 'Contas a Pagar'   },

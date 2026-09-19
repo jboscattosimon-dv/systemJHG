@@ -304,3 +304,31 @@ export interface UsuarioPerfil {
   ativo: boolean
   created_at: string
 }
+
+/* ── Condicional ──────────────────────────────────────────────── */
+
+export type CondicionalStatus = 'aberto' | 'fechado'
+export type ItemCondicionalStatus = 'pendente' | 'vendido' | 'devolvido'
+
+export interface ItemCondicional {
+  id: string
+  condicional_id: string
+  produto_id: string
+  nome: string
+  quantidade: number
+  preco_unitario: number
+  status: ItemCondicionalStatus
+}
+
+export interface Condicional {
+  id: string
+  cliente_id: string
+  usuario_id?: string
+  status: CondicionalStatus
+  observacao?: string
+  venda_id?: string
+  criado_em: string
+  fechado_em?: string
+  cliente?: Cliente
+  itens?: ItemCondicional[]
+}
