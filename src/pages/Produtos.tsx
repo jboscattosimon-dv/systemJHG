@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type ChangeEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, X, AlertTriangle, Package, Scissors, Check, Tag, Pencil, Download, Upload } from 'lucide-react'
+import { Plus, X, AlertTriangle, Package, Scissors, Check, Tag, Pencil, Download, Upload, Trash2, FileSpreadsheet } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { formatCurrency } from '../lib/utils'
@@ -14,39 +14,62 @@ const CAT_LABEL: Record<ProdutoCategoria, string> = {
   bebidas: 'Bebidas', pomadas: 'Pomadas', petiscos: 'Petiscos', outros: 'Outros',
 }
 
-const CATEGORIAS_VALIDAS: ProdutoCategoria[] = ['bebidas', 'pomadas', 'petiscos', 'outros']
-
 const COLUNAS_IMPORTACAO = [
-  'Nome do Produto', 'Categoria (bebidas/pomadas/petiscos/outros)', 'Unidade (un, kg, ml...)',
-  'Preço de Custo', 'Preço de Venda', 'Estoque Atual', 'Estoque Mínimo', 'Estoque Máximo', 'Comissão (%)', 'SKU / Código',
+  'Nome', 'Tamanho', 'Estoque', 'Preço de Custo', 'Preço de Venda à Vista', 'Preço de Venda a Prazo',
 ] as const
 
+interface TamanhoQtd { tamanho: string; quantidade: number }
+
+// "P:2, M:3, G:1" -> [{tamanho:'P',quantidade:2}, ...]
+function parseTamanhos(valor: unknown): TamanhoQtd[] {
+  const texto = String(valor ?? '').trim()
+  if (!texto) return []
+  return texto.split(',')
+    .map(par => par.trim())
+    .filter(Boolean)
+    .map(par => {
+      const [tam, qtd] = par.split(':').map(s => s.trim())
+      return { tamanho: tam ?? '', quantidade: numero(qtd, 0) }
+    })
+    .filter(t => t.tamanho)
+}
+
+function formatarTamanhos(tamanhos: TamanhoQtd[]): string {
+  return tamanhos.map(t => `${t.tamanho}:${t.quantidade}`).join(', ')
+}
+
 function baixarModeloProdutos() {
-  const exemplo = ['Pomada Modeladora', 'pomadas', 'un', 12, 25, 20, 5, 50, '', '']
+  const exemplo = ['Conjunto Eva', 'P:2, M:3', '', 80, 200, 220]
   const ws = XLSX.utils.aoa_to_sheet([COLUNAS_IMPORTACAO as unknown as string[], exemplo])
-  ws['!cols'] = COLUNAS_IMPORTACAO.map(() => ({ wch: 22 }))
+  ws['!cols'] = COLUNAS_IMPORTACAO.map(() => ({ wch: 24 }))
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Produtos')
   XLSX.writeFile(wb, 'modelo-importacao-produtos.xlsx')
 }
 
-interface LinhaImportada {
-  nome: string
-  categoria: ProdutoCategoria
-  unidade: string
-  preco_custo: number
-  preco_venda: number
-  estoque_atual: number
-  estoque_minimo: number
-  estoque_maximo: number | null
-  comissao_percentual: number | null
-  sku: string | null
-  ativo: true
+function exportarProdutos(produtos: Produto[]) {
+  const linhas = produtos.map(p => [
+    p.nome,
+    formatarTamanhos((p.tamanhos ?? []).map(t => ({ tamanho: t.tamanho, quantidade: t.quantidade }))),
+    p.estoque_atual,
+    p.preco_custo,
+    p.preco_venda,
+    p.preco_venda_prazo ?? '',
+  ])
+  const ws = XLSX.utils.aoa_to_sheet([COLUNAS_IMPORTACAO as unknown as string[], ...linhas])
+  ws['!cols'] = COLUNAS_IMPORTACAO.map(() => ({ wch: 24 }))
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Produtos')
+  XLSX.writeFile(wb, `produtos-${new Date().toISOString().split('T')[0]}.xlsx`)
 }
 
-function normalizarCategoria(valor: unknown): ProdutoCategoria {
-  const v = String(valor ?? '').trim().toLowerCase()
-  return (CATEGORIAS_VALIDAS as string[]).includes(v) ? (v as ProdutoCategoria) : 'outros'
+interface LinhaImportada {
+  nome: string
+  tamanhos: TamanhoQtd[]
+  estoque_total: number
+  preco_custo: number
+  preco_venda: number
+  preco_venda_prazo: number | null
 }
 
 function numero(valor: unknown, padrao = 0): number {
@@ -67,20 +90,22 @@ async function lerPlanilhaProdutos(arquivo: File): Promise<{ validas: LinhaImpor
     const nome = String(linha[COLUNAS_IMPORTACAO[0]] ?? '').trim()
     const precoVenda = numero(linha[COLUNAS_IMPORTACAO[4]], NaN)
     if (!nome) { erros.push(`Linha ${i + 2}: sem nome do produto, ignorada.`); return }
-    if (!Number.isFinite(precoVenda) || precoVenda <= 0) { erros.push(`Linha ${i + 2} (${nome}): preço de venda inválido, ignorada.`); return }
+    if (!Number.isFinite(precoVenda) || precoVenda <= 0) { erros.push(`Linha ${i + 2} (${nome}): preço de venda à vista inválido, ignorada.`); return }
+
+    const tamanhos = parseTamanhos(linha[COLUNAS_IMPORTACAO[1]])
+    const estoqueTotal = tamanhos.length > 0
+      ? tamanhos.reduce((s, t) => s + t.quantidade, 0)
+      : numero(linha[COLUNAS_IMPORTACAO[2]], 0)
+    const precoPrazoBruto = linha[COLUNAS_IMPORTACAO[5]]
+    const precoVendaPrazo = precoPrazoBruto !== '' && precoPrazoBruto != null ? numero(precoPrazoBruto, NaN) : null
 
     validas.push({
       nome,
-      categoria: normalizarCategoria(linha[COLUNAS_IMPORTACAO[1]]),
-      unidade: String(linha[COLUNAS_IMPORTACAO[2]] ?? '').trim() || 'un',
+      tamanhos,
+      estoque_total: estoqueTotal,
       preco_custo: numero(linha[COLUNAS_IMPORTACAO[3]], 0),
       preco_venda: precoVenda,
-      estoque_atual: numero(linha[COLUNAS_IMPORTACAO[5]], 0),
-      estoque_minimo: numero(linha[COLUNAS_IMPORTACAO[6]], 5),
-      estoque_maximo: linha[COLUNAS_IMPORTACAO[7]] ? numero(linha[COLUNAS_IMPORTACAO[7]], 0) : null,
-      comissao_percentual: linha[COLUNAS_IMPORTACAO[8]] ? numero(linha[COLUNAS_IMPORTACAO[8]], 0) : null,
-      sku: String(linha[COLUNAS_IMPORTACAO[9]] ?? '').trim() || null,
-      ativo: true,
+      preco_venda_prazo: precoVendaPrazo != null && Number.isFinite(precoVendaPrazo) ? precoVendaPrazo : null,
     })
   })
 
@@ -96,9 +121,10 @@ export default function Produtos() {
   const [editProdId, setEditProdId] = useState<string | null>(null)
   const [prodForm, setProdForm] = useState({
     nome: '', categoria: 'bebidas' as ProdutoCategoria, sku: '', unidade: 'un',
-    preco_custo: '', preco_venda: '', estoque_atual: '', estoque_minimo: '5', estoque_maximo: '',
+    preco_custo: '', preco_venda: '', preco_venda_prazo: '', estoque_atual: '', estoque_minimo: '5', estoque_maximo: '',
     comissao_percentual: '',
   })
+  const [prodTamanhos, setProdTamanhos] = useState<{ tamanho: string; quantidade: string }[]>([])
 
   // Serviços
   const [servicos, setServicos] = useState<Servico[]>([])
@@ -120,6 +146,8 @@ export default function Produtos() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const alertas = produtos.filter(p => p.estoque_atual <= p.estoque_minimo)
+  const temTamanhosForm = prodTamanhos.some(t => t.tamanho.trim())
+  const totalTamanhosForm = prodTamanhos.filter(t => t.tamanho.trim()).reduce((s, t) => s + (Number(t.quantidade) || 0), 0)
 
   async function handleImportarArquivo(e: ChangeEvent<HTMLInputElement>) {
     const arquivo = e.target.files?.[0]
@@ -129,9 +157,18 @@ export default function Produtos() {
     try {
       const { validas, erros } = await lerPlanilhaProdutos(arquivo)
       if (validas.length > 0) {
-        const { data, error: err } = await supabase.from('produtos').insert(validas).select('*')
+        const { error: err } = await supabase.rpc('importar_produtos', {
+          p_produtos: validas.map(v => ({
+            nome: v.nome,
+            tamanhos: v.tamanhos,
+            estoque_total: v.estoque_total,
+            preco_custo: v.preco_custo,
+            preco_venda: v.preco_venda,
+            preco_venda_prazo: v.preco_venda_prazo,
+          })),
+        })
         if (err) { setError(err.message); setImportando(false); return }
-        if (data) setProdutos(prev => [...prev, ...(data as Produto[])].sort((a, b) => a.nome.localeCompare(b.nome)))
+        await carregarProdutos()
       }
       setResultadoImportacao({ ok: validas.length, erros })
     } catch {
@@ -156,9 +193,13 @@ export default function Produtos() {
     setProdutosEtiqueta(produtos.filter(p => selecionados.has(p.id)))
   }
 
-  useEffect(() => {
-    supabase.from('produtos').select('*').order('nome')
+  function carregarProdutos() {
+    return supabase.from('produtos').select('*, tamanhos:produto_tamanhos(*)').order('nome')
       .then(({ data }) => { setProdutos((data ?? []) as Produto[]) })
+  }
+
+  useEffect(() => {
+    carregarProdutos()
 
     supabase
       .from('servicos')
@@ -177,37 +218,67 @@ export default function Produtos() {
       .then(({ data }) => { if (data) setProfissionais(data as Profissional[]) })
   }, [])
 
+  function addTamanhoRow() {
+    setProdTamanhos(prev => [...prev, { tamanho: '', quantidade: '0' }])
+  }
+
+  function updateTamanhoRow(idx: number, campo: 'tamanho' | 'quantidade', valor: string) {
+    setProdTamanhos(prev => prev.map((t, i) => i === idx ? { ...t, [campo]: valor } : t))
+  }
+
+  function removeTamanhoRow(idx: number) {
+    setProdTamanhos(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  async function salvarTamanhosProduto(produtoId: string) {
+    await supabase.from('produto_tamanhos').delete().eq('produto_id', produtoId)
+    const linhas = prodTamanhos.filter(t => t.tamanho.trim())
+    if (linhas.length > 0) {
+      await supabase.from('produto_tamanhos').insert(
+        linhas.map(t => ({ produto_id: produtoId, tamanho: t.tamanho.trim(), quantidade: Number(t.quantidade) || 0 }))
+      )
+    }
+  }
+
   async function handleSaveProd() {
     if (!prodForm.nome.trim() || !prodForm.preco_venda) {
       setError('Nome e preço de venda são obrigatórios.'); return
     }
     setSaving(true); setError('')
-    const payload = {
+    const temTamanhos = prodTamanhos.some(t => t.tamanho.trim())
+    const payload: Record<string, unknown> = {
       nome: prodForm.nome, categoria: prodForm.categoria,
       sku: prodForm.sku || null,
       unidade: prodForm.unidade || 'un',
       preco_custo: Number(prodForm.preco_custo) || 0,
       preco_venda: Number(prodForm.preco_venda),
-      estoque_atual: Number(prodForm.estoque_atual) || 0,
+      preco_venda_prazo: prodForm.preco_venda_prazo ? Number(prodForm.preco_venda_prazo) : null,
       estoque_minimo: Number(prodForm.estoque_minimo) || 5,
       estoque_maximo: prodForm.estoque_maximo ? Number(prodForm.estoque_maximo) : null,
       comissao_percentual: prodForm.comissao_percentual ? Number(prodForm.comissao_percentual) : null,
     }
+    // Com tamanhos cadastrados, o total vem do trigger (soma dos tamanhos)
+    // depois que a gente sincronizar produto_tamanhos logo abaixo.
+    if (!temTamanhos) payload.estoque_atual = Number(prodForm.estoque_atual) || 0
+
+    let produtoId = editProdId
     if (editProdId) {
-      const { data, error: err } = await supabase.from('produtos').update(payload).eq('id', editProdId).select('*').single()
+      const { error: err } = await supabase.from('produtos').update(payload).eq('id', editProdId)
       if (err) { setError(err.message); setSaving(false); return }
-      if (data) setProdutos(prev => prev.map(p => p.id === editProdId ? (data as Produto) : p))
     } else {
-      const { data, error: err } = await supabase.from('produtos').insert({ ...payload, ativo: true }).select('*').single()
+      const { data, error: err } = await supabase.from('produtos').insert({ ...payload, ativo: true }).select('id').single()
       if (err) { setError(err.message); setSaving(false); return }
-      if (data) setProdutos(prev => [...prev, data as Produto])
+      produtoId = (data as { id: string }).id
     }
+    if (produtoId) await salvarTamanhosProduto(produtoId)
+    await carregarProdutos()
     fecharModalProd(); setSaving(false)
   }
 
   function abrirNovoProd() {
     setEditProdId(null)
-    setProdForm({ nome: '', categoria: 'bebidas', sku: '', unidade: 'un', preco_custo: '', preco_venda: '', estoque_atual: '', estoque_minimo: '5', estoque_maximo: '', comissao_percentual: '' })
+    setProdForm({ nome: '', categoria: 'bebidas', sku: '', unidade: 'un', preco_custo: '', preco_venda: '', preco_venda_prazo: '', estoque_atual: '', estoque_minimo: '5', estoque_maximo: '', comissao_percentual: '' })
+    setProdTamanhos([])
     setError('')
     setShowProdModal(true)
   }
@@ -217,10 +288,12 @@ export default function Produtos() {
     setProdForm({
       nome: p.nome, categoria: p.categoria, sku: p.sku ?? '', unidade: p.unidade,
       preco_custo: String(p.preco_custo), preco_venda: String(p.preco_venda),
+      preco_venda_prazo: p.preco_venda_prazo != null ? String(p.preco_venda_prazo) : '',
       estoque_atual: String(p.estoque_atual), estoque_minimo: String(p.estoque_minimo),
       estoque_maximo: p.estoque_maximo != null ? String(p.estoque_maximo) : '',
       comissao_percentual: p.comissao_percentual != null ? String(p.comissao_percentual) : '',
     })
+    setProdTamanhos((p.tamanhos ?? []).map(t => ({ tamanho: t.tamanho, quantidade: String(t.quantidade) })))
     setError('')
     setShowProdModal(true)
   }
@@ -228,6 +301,7 @@ export default function Produtos() {
   function fecharModalProd() {
     setShowProdModal(false)
     setEditProdId(null)
+    setProdTamanhos([])
   }
 
   async function toggleAtivoProd(id: string, ativo: boolean) {
@@ -346,6 +420,11 @@ export default function Produtos() {
             <button className="btn btn-icon" title="Baixar modelo de planilha" onClick={baixarModeloProdutos}>
               <Download size={13} />
             </button>
+            {produtos.length > 0 && (
+              <button className="btn btn-icon" title="Exportar catálogo atual" onClick={() => exportarProdutos(produtos)}>
+                <FileSpreadsheet size={13} />
+              </button>
+            )}
             <button className="btn btn-icon" title={importando ? 'Importando...' : 'Importar produtos por planilha'} onClick={() => fileInputRef.current?.click()} disabled={importando}>
               <Upload size={13} />
             </button>
@@ -495,6 +574,11 @@ export default function Produtos() {
                         {p.sku && <span style={{ fontSize: '10px', color: '#444', marginLeft: '8px' }}>#{p.sku}</span>}
                         {margem && <span style={{ fontSize: '10px', color: '#555', marginLeft: '8px' }}>+{margem}% margem</span>}
                         {p.comissao_percentual != null && <span style={{ fontSize: '10px', color: '#555', marginLeft: '8px' }}>comissão {p.comissao_percentual}%</span>}
+                        {p.tamanhos && p.tamanhos.length > 0 && (
+                          <span style={{ fontSize: '10px', color: '#555', marginLeft: '8px' }}>
+                            {p.tamanhos.map(t => `${t.tamanho}:${t.quantidade}`).join(' ')}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <span style={{ fontSize: '12px', color: '#666', textTransform: 'capitalize' }}>{CAT_LABEL[p.categoria]}</span>
@@ -817,21 +901,54 @@ export default function Produtos() {
                     <input className="input" placeholder="opcional" value={prodForm.sku} onChange={e => setProdForm(f => ({ ...f, sku: e.target.value }))} />
                   </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                   <div className="field">
                     <label className="label">Preço de Custo</label>
                     <input className="input" type="number" min={0} step={0.01} placeholder="0,00" value={prodForm.preco_custo} onChange={e => setProdForm(f => ({ ...f, preco_custo: e.target.value }))} />
                   </div>
                   <div className="field">
-                    <label className="label">Preço de Venda *</label>
+                    <label className="label">Venda à Vista *</label>
                     <input className="input" type="number" min={0} step={0.01} placeholder="0,00" value={prodForm.preco_venda} onChange={e => setProdForm(f => ({ ...f, preco_venda: e.target.value }))} />
                   </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                   <div className="field">
-                    <label className="label">Estoque Atual</label>
-                    <input className="input" type="number" min={0} placeholder="0" value={prodForm.estoque_atual} onChange={e => setProdForm(f => ({ ...f, estoque_atual: e.target.value }))} />
+                    <label className="label">Venda a Prazo</label>
+                    <input className="input" type="number" min={0} step={0.01} placeholder="opcional" value={prodForm.preco_venda_prazo} onChange={e => setProdForm(f => ({ ...f, preco_venda_prazo: e.target.value }))} />
                   </div>
+                </div>
+
+                <div className="field">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <label className="label" style={{ marginBottom: 0 }}>Estoque por tamanho</label>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={addTamanhoRow} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Plus size={11} /> Tamanho
+                    </button>
+                  </div>
+                  {prodTamanhos.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
+                      {prodTamanhos.map((t, idx) => (
+                        <div key={idx} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          <input
+                            className="input" style={{ flex: 1 }} placeholder="Tamanho (P, M, 38...)"
+                            value={t.tamanho} onChange={e => updateTamanhoRow(idx, 'tamanho', e.target.value)}
+                          />
+                          <input
+                            className="input" style={{ width: '90px' }} type="number" min={0} placeholder="Qtd"
+                            value={t.quantidade} onChange={e => updateTamanhoRow(idx, 'quantidade', e.target.value)}
+                          />
+                          <button className="btn btn-icon" onClick={() => removeTamanhoRow(idx)}><Trash2 size={12} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: temTamanhosForm ? '1fr 1fr' : '1fr 1fr 1fr', gap: '12px' }}>
+                  {!temTamanhosForm && (
+                    <div className="field">
+                      <label className="label">Estoque Atual</label>
+                      <input className="input" type="number" min={0} placeholder="0" value={prodForm.estoque_atual} onChange={e => setProdForm(f => ({ ...f, estoque_atual: e.target.value }))} />
+                    </div>
+                  )}
                   <div className="field">
                     <label className="label">Estoque Mínimo</label>
                     <input className="input" type="number" min={0} placeholder="5" value={prodForm.estoque_minimo} onChange={e => setProdForm(f => ({ ...f, estoque_minimo: e.target.value }))} />
@@ -841,6 +958,11 @@ export default function Produtos() {
                     <input className="input" type="number" min={0} placeholder="opcional" value={prodForm.estoque_maximo} onChange={e => setProdForm(f => ({ ...f, estoque_maximo: e.target.value }))} />
                   </div>
                 </div>
+                {temTamanhosForm && (
+                  <p style={{ fontSize: '12px', color: '#555', marginTop: '-6px' }}>
+                    Estoque total: <strong style={{ color: '#FFFFFF' }}>{totalTamanhosForm}</strong> (soma dos tamanhos acima)
+                  </p>
+                )}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="field">
                     <label className="label">Unidade</label>

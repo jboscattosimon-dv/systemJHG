@@ -53,12 +53,20 @@ export interface ProfissionalServico {
   servico_id: string
 }
 
+export interface ProdutoTamanho {
+  id: string
+  produto_id: string
+  tamanho: string
+  quantidade: number
+}
+
 export interface Produto {
   id: string
   nome: string
   categoria: ProdutoCategoria
   preco_custo: number
   preco_venda: number
+  preco_venda_prazo?: number
   estoque_atual: number
   estoque_minimo: number
   estoque_maximo?: number
@@ -66,6 +74,7 @@ export interface Produto {
   unidade: string
   comissao_percentual?: number
   ativo: boolean
+  tamanhos?: ProdutoTamanho[]
 }
 
 export interface Agendamento {

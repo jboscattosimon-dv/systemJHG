@@ -120,7 +120,16 @@ export default function Condicionais() {
 
   const todosDecididos = itensFechar.length > 0 && itensFechar.every(i => decisoes[i.id])
   const temVendido = itensFechar.some(i => decisoes[i.id] === 'vendido')
-  const totalVendido = itensFechar.filter(i => decisoes[i.id] === 'vendido').reduce((s, i) => s + totalItem(i), 0)
+
+  // No crédito, produto com preço a prazo cadastrado cobra esse valor em vez do preço à vista
+  // (mesma regra aplicada de verdade no fechar_condicional, no banco — isso aqui é só a prévia).
+  function precoEfetivoFechar(item: { produto_id: string; preco_unitario: number }): number {
+    if (pagamento !== 'credito') return item.preco_unitario
+    const prod = produtos.find(p => p.id === item.produto_id)
+    return prod?.preco_venda_prazo ?? item.preco_unitario
+  }
+
+  const totalVendido = itensFechar.filter(i => decisoes[i.id] === 'vendido').reduce((s, i) => s + precoEfetivoFechar(i) * i.quantidade, 0)
 
   async function confirmarFechar() {
     if (!condFechar || !todosDecididos) { setError('Decida cada item (vendido ou devolvido) antes de fechar.'); return }
@@ -386,7 +395,10 @@ export default function Condicionais() {
                     }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF' }}>{item.nome}</p>
-                        <p style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>{item.quantidade}x {formatCurrency(item.preco_unitario)}</p>
+                        <p style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>
+                          {item.quantidade}x {formatCurrency(decisao === 'vendido' ? precoEfetivoFechar(item) : item.preco_unitario)}
+                          {decisao === 'vendido' && precoEfetivoFechar(item) !== item.preco_unitario && <span style={{ marginLeft: '4px' }}>(a prazo)</span>}
+                        </p>
                       </div>
                       <button
                         onClick={() => setDecisao(item.id, 'vendido')}

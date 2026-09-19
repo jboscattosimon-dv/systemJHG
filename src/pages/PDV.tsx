@@ -37,7 +37,14 @@ export default function PDV() {
   const [showScanner, setShowScanner] = useState(false)
   const [scanAviso, setScanAviso] = useState('')
 
-  const total = cart.reduce((s, i) => s + i.preco_unitario * i.quantidade, 0)
+  // No crédito, produto com preço a prazo cadastrado cobra esse valor em vez do preço à vista.
+  function precoEfetivo(item: ItemComanda): number {
+    if (pagamento !== 'credito' || item.tipo !== 'produto') return item.preco_unitario
+    const prod = produtos.find(p => p.id === item.referencia_id)
+    return prod?.preco_venda_prazo ?? item.preco_unitario
+  }
+
+  const total = cart.reduce((s, i) => s + precoEfetivo(i) * i.quantidade, 0)
 
   useEffect(() => {
     supabase.from('servicos').select('*').eq('ativo', true).order('nome')
@@ -132,7 +139,7 @@ export default function PDV() {
         referencia_id: i.referencia_id,
         nome: i.nome,
         quantidade: i.quantidade,
-        preco_unitario: i.preco_unitario,
+        preco_unitario: precoEfetivo(i),
         profissional_id: i.profissional_id ?? null,
       })),
     })
@@ -308,7 +315,10 @@ export default function PDV() {
                   <p style={{ fontSize: '12px', fontWeight: 500, color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {item.nome}
                   </p>
-                  <p style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>{formatCurrency(item.preco_unitario)}</p>
+                  <p style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>
+                    {formatCurrency(precoEfetivo(item))}
+                    {precoEfetivo(item) !== item.preco_unitario && <span style={{ marginLeft: '4px' }}>(a prazo)</span>}
+                  </p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <button
