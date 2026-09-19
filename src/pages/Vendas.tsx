@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo, type KeyboardEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ShoppingCart, Plus, Minus, Trash2, X, Check, Search, Scissors, Package, ScanLine } from 'lucide-react'
+import { ShoppingCart, Plus, Minus, Trash2, X, Check, Search, Package, ScanLine } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency } from '../lib/utils'
 import ScannerCamera from '../components/ScannerCamera'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
-import type { ItemComanda, PagamentoMetodo, Produto, Profissional, Servico } from '../types'
+import type { ItemComanda, PagamentoMetodo, Produto, Profissional } from '../types'
 
 const PAGAMENTOS: { id: PagamentoMetodo; label: string }[] = [
   { id: 'pix',      label: 'Pix'            },
@@ -16,13 +16,8 @@ const PAGAMENTOS: { id: PagamentoMetodo; label: string }[] = [
 
 function uid() { return Math.random().toString(36).slice(2) }
 
-type ItemCatalogo =
-  | { tipo: 'servico'; dado: Servico }
-  | { tipo: 'produto'; dado: Produto }
-
 export default function Vendas() {
   const [search, setSearch]   = useState('')
-  const [servicos, setServicos] = useState<Servico[]>([])
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [profissionais, setProfissionais] = useState<Profissional[]>([])
   const [profissionalId, setProfissionalId] = useState('')
@@ -53,33 +48,19 @@ export default function Vendas() {
   }
 
   useEffect(() => {
-    supabase.from('servicos').select('*').eq('ativo', true).order('nome')
-      .then(({ data }) => { if (data) setServicos(data as Servico[]) })
-
     carregarProdutos()
 
     supabase.from('profissionais').select('*').eq('ativo', true).order('nome')
       .then(({ data }) => { if (data) setProfissionais(data as Profissional[]) })
   }, [])
 
-  const servicosFiltrados = useMemo(() =>
-    servicos.filter(s => s.nome.toLowerCase().includes(search.toLowerCase())),
-    [servicos, search]
-  )
-
   const produtosFiltrados = useMemo(() =>
     produtos.filter(p =>
       p.nome.toLowerCase().includes(search.toLowerCase()) ||
       (p.sku ?? '').toLowerCase().includes(search.toLowerCase())
-    ),
+    ).sort((a, b) => a.nome.localeCompare(b.nome)),
     [produtos, search]
   )
-
-  const itensCatalogo = useMemo<ItemCatalogo[]>(() => {
-    const s: ItemCatalogo[] = servicosFiltrados.map(dado => ({ tipo: 'servico', dado }))
-    const p: ItemCatalogo[] = produtosFiltrados.map(dado => ({ tipo: 'produto', dado }))
-    return [...s, ...p].sort((a, b) => a.dado.nome.localeCompare(b.dado.nome))
-  }, [servicosFiltrados, produtosFiltrados])
 
   function buscarPorCodigo(codigo: string): Produto | undefined {
     const alvo = codigo.trim().toLowerCase()
@@ -105,14 +86,6 @@ export default function Vendas() {
       addProduto(produto)
       setSearch('')
     }
-  }
-
-  function addServico(s: Servico) {
-    setCart(prev => {
-      const ex = prev.find(i => i.tipo === 'servico' && i.referencia_id === s.id)
-      if (ex) return prev.map(i => i.id === ex.id ? { ...i, quantidade: i.quantidade + 1 } : i)
-      return [...prev, { id: uid(), tipo: 'servico', referencia_id: s.id, nome: s.nome, quantidade: 1, preco_unitario: s.preco, profissional_id: profissionalId || undefined }]
-    })
   }
 
   // Produto com tamanho cadastrado pede pra escolher qual antes de entrar na comanda.
@@ -195,7 +168,7 @@ export default function Vendas() {
             <input
               className="input-bare"
               style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: '13px', color: '#FFFFFF', fontFamily: 'inherit' }}
-              placeholder="Buscar produto ou serviço, ou ler código..."
+              placeholder="Buscar produto, ou ler código..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               onKeyDown={handleSearchKeyDown}
@@ -227,37 +200,35 @@ export default function Vendas() {
           <p style={{ fontSize: '12px', color: '#666', marginTop: '-8px', marginBottom: '12px', flexShrink: 0 }}>{scanAviso}</p>
         )}
 
-        {/* Content area — produtos e serviços juntos, sem separação */}
+        {/* Content area — catálogo de produtos */}
         <div className="pdv-catalog-content" style={{ flex: 1, overflowY: 'auto', paddingBottom: '16px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '12px' }}>
-            {itensCatalogo.length === 0 ? (
+            {produtosFiltrados.length === 0 ? (
               <div style={{ gridColumn: '1/-1', padding: '56px', textAlign: 'center', color: '#444', fontSize: '13px' }}>
-                Nenhum produto ou serviço encontrado.
+                Nenhum produto encontrado.
               </div>
-            ) : itensCatalogo.map(item => {
-              const baixo = item.tipo === 'produto' && item.dado.estoque_atual <= item.dado.estoque_minimo
-              const temTamanhos = item.tipo === 'produto' && item.dado.tamanhos && item.dado.tamanhos.length > 0
+            ) : produtosFiltrados.map(p => {
+              const baixo = p.estoque_atual <= p.estoque_minimo
+              const temTamanhos = p.tamanhos && p.tamanhos.length > 0
               return (
                 <motion.button
-                  key={`${item.tipo}-${item.dado.id}`}
-                  onClick={() => item.tipo === 'servico' ? addServico(item.dado) : addProduto(item.dado)}
+                  key={p.id}
+                  onClick={() => addProduto(p)}
                   className="card-sm"
                   style={{ cursor: 'pointer', border: '1px solid #2A2A2A', textAlign: 'left', transition: 'all 0.15s', fontFamily: 'inherit', width: '100%' }}
                   whileHover={{ borderColor: '#444', background: '#242424' }}
                   whileTap={{ scale: 0.97 }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
-                    {item.tipo === 'servico' ? <Scissors size={11} style={{ color: '#555' }} /> : <Package size={11} style={{ color: '#555' }} />}
+                    <Package size={11} style={{ color: '#555' }} />
                     <span style={{ fontSize: '9px', color: '#555', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      {item.tipo === 'servico' ? 'Serviço' : 'Produto'}
+                      Produto
                     </span>
                   </div>
-                  <p style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', marginBottom: '4px' }}>{item.dado.nome}</p>
-                  {item.tipo === 'servico' ? (
-                    <p style={{ fontSize: '11px', color: '#555' }}>{item.dado.duracao_minutos} min</p>
-                  ) : temTamanhos ? (
+                  <p style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', marginBottom: '4px' }}>{p.nome}</p>
+                  {temTamanhos ? (
                     <p style={{ fontSize: '11px', color: '#555', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                      {item.dado.tamanhos!.map(t => (
+                      {p.tamanhos!.map(t => (
                         <span key={t.tamanho} style={{
                           padding: '1px 6px', borderRadius: '99px',
                           background: t.quantidade > 0 ? 'rgba(255,255,255,0.06)' : 'transparent',
@@ -269,11 +240,11 @@ export default function Vendas() {
                     </p>
                   ) : (
                     <p style={{ fontSize: '11px', color: baixo ? '#A3A3A3' : '#555' }}>
-                      {item.dado.estoque_atual} {item.dado.unidade} em estoque
+                      {p.estoque_atual} {p.unidade} em estoque
                     </p>
                   )}
                   <p style={{ fontSize: '16px', fontWeight: 700, color: '#FFFFFF', marginTop: '10px' }}>
-                    {formatCurrency(item.tipo === 'servico' ? item.dado.preco : item.dado.preco_venda)}
+                    {formatCurrency(p.preco_venda)}
                   </p>
                 </motion.button>
               )
@@ -330,7 +301,7 @@ export default function Vendas() {
           <AnimatePresence>
             {cart.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 20px', color: '#333', fontSize: '13px' }}>
-                Adicione itens à comanda
+                Adicione itens à venda
               </div>
             ) : cart.map(item => (
               <motion.div

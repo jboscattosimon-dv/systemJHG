@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  LayoutDashboard, Calendar, ShoppingCart, Wallet, Users,
+  LayoutDashboard, ShoppingCart, Wallet, Users,
   Scissors, Package, PackageOpen, Truck, BarChart2, ArrowDownCircle, ArrowUpCircle,
   Percent, FileBarChart, FileText, ClipboardList, Settings, UserCog, LogOut, Building2, Tags,
   ChevronDown, FolderOpen, ArrowLeftRight,
@@ -44,7 +44,6 @@ const NAV_GRUPOS: { label: string; icon: typeof LayoutDashboard; items: NavItemD
     label: 'Movimentos',
     icon: ArrowLeftRight,
     items: [
-      { to: '/agenda',         icon: Calendar,        label: 'Agenda'           },
       { to: '/vendas',         icon: ShoppingCart,    label: 'Vendas'           },
       { to: '/condicional',    icon: PackageOpen,     label: 'Condicional'      },
       { to: '/caixa',          icon: Wallet,          label: 'Caixa'            },
