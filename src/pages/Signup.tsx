@@ -25,7 +25,7 @@ export default function Signup() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0D0D0D', padding: '20px' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000000', padding: '20px' }}>
       <motion.div
         className="card"
         style={{ width: '100%', maxWidth: '380px', padding: '32px' }}

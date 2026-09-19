@@ -940,7 +940,7 @@ export default function Produtos() {
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
                               flexShrink: 0,
                             }}>
-                              {checked && <Check size={10} strokeWidth={3} style={{ color: '#0D0D0D' }} />}
+                              {checked && <Check size={10} strokeWidth={3} style={{ color: '#000000' }} />}
                             </div>
                             <div>
                               <div style={{ fontSize: '13px', color: '#FFFFFF' }}>{p.nome}</div>

@@ -29,7 +29,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   if (loading) return (
     <div style={{
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: '#0D0D0D',
+      background: '#000000',
     }}>
       <div style={{
         width: '18px', height: '18px',

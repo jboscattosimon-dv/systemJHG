@@ -205,7 +205,7 @@ export default function Sidebar({ hidden }: { hidden: boolean }) {
           }}
         />
         <span style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', letterSpacing: '-0.01em' }}>
-          BarberOS
+          Noir ERP
         </span>
         <span style={{
           marginLeft: 'auto',

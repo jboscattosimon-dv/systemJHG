@@ -77,7 +77,7 @@ export default function Login() {
             <span className="login-logo-ring" />
             <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Logo" style={{ width: '100px', height: '100px', objectFit: 'contain' }} />
           </div>
-          <h1 className="login-title">BarberOS</h1>
+          <h1 className="login-title">Noir ERP</h1>
           <p className="login-sub">
             <span className="login-dot" /> Sistema de gestão
           </p>
@@ -160,7 +160,7 @@ export default function Login() {
           className="login-foot"
           variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { duration: 0.6 } } }}
         >
-          BarberOS ERP © {new Date().getFullYear()}
+          Noir ERP © {new Date().getFullYear()}
         </motion.p>
       </motion.div>
     </div>
@@ -354,7 +354,7 @@ function ScopedStyles() {
         border: none; cursor: pointer;
         border-radius: 11px;
         background: #FFFFFF;
-        color: #0D0D0D;
+        color: #000000;
         font-family: 'DM Sans', sans-serif;
         font-weight: 600; font-size: 14.5px;
         overflow: hidden;

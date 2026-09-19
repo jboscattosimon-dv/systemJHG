@@ -156,7 +156,7 @@ function ListaView({
                 flex: 1, padding: '10px 8px', borderRadius: '8px', fontFamily: 'inherit',
                 border: isSel ? '1px solid #FFFFFF' : '1px solid #2A2A2A',
                 background: isSel ? '#FFFFFF' : 'transparent',
-                color: isSel ? '#0D0D0D' : isToday ? '#A3A3A3' : '#555',
+                color: isSel ? '#000000' : isToday ? '#A3A3A3' : '#555',
                 cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s ease',
               }}>
                 <div style={{ fontSize: '10px', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -166,7 +166,7 @@ function ListaView({
                 {count > 0 && (
                   <div style={{
                     marginTop: '5px', width: '5px', height: '5px', borderRadius: '50%',
-                    background: isSel ? '#0D0D0D' : '#555', margin: '5px auto 0',
+                    background: isSel ? '#000000' : '#555', margin: '5px auto 0',
                   }} />
                 )}
               </button>
@@ -584,7 +584,7 @@ function MensalView({
                   <span style={{
                     fontSize: '13px',
                     fontWeight: isToday ? 700 : 400,
-                    color: isToday ? '#0D0D0D' : isThisMon ? (isSel ? '#FFFFFF' : '#A3A3A3') : '#333',
+                    color: isToday ? '#000000' : isThisMon ? (isSel ? '#FFFFFF' : '#A3A3A3') : '#333',
                     fontFamily: 'DM Sans, sans-serif',
                   }}>
                     {d.getDate()}

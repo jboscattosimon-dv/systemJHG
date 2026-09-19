@@ -6,13 +6,13 @@
 
 :root {
   /* Backgrounds */
-  --bg:        #0D0D0D;
-  --surface:   #1E1E1E;
-  --surface-2: #262626;
+  --bg:        #000000;
+  --surface:   #1A1A1A;
+  --surface-2: #242424;
 
   /* Borders */
-  --border:        #333333;
-  --border-strong: #444444;
+  --border:        #2E2E2E;
+  --border-strong: #474747;
 
   /* Text */
   --text:       #FFFFFF;
@@ -24,10 +24,13 @@
   --radius:    8px;
   --radius-lg: 12px;
 
+  /* Easing */
+  --ease-premium: cubic-bezier(0.22, 1, 0.36, 1);
+
   /* Shadows */
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.6);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.7);
-  --shadow-lg: 0 8px 32px rgba(0,0,0,0.8);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.7);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.8);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.9);
 }
 
 /* ── Reset & base ────────────────────────────────────────── */
@@ -71,6 +74,7 @@ h1, h2, h3 {
   outline: 1.5px solid rgba(255,255,255,0.4);
   outline-offset: 2px;
   border-radius: var(--radius);
+  box-shadow: 0 0 0 5px rgba(255,255,255,0.06);
 }
 
 /* ── Select / Date inputs ────────────────────────────────── */
@@ -92,7 +96,7 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
   font-size: 14px;
   border-radius: var(--radius);
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: all 0.25s var(--ease-premium);
   white-space: nowrap;
   text-decoration: none;
   border: none;
@@ -105,15 +109,15 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
   padding: 12px 24px;
   min-height: 44px;
   background: #FFFFFF;
-  color: #0D0D0D;
+  color: #000000;
   font-weight: 600;
 }
 .btn-primary:hover {
   background: #E5E5E5;
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(255,255,255,0.12);
+  box-shadow: 0 6px 20px rgba(255,255,255,0.14);
 }
-.btn-primary:active { transform: translateY(0); }
+.btn-primary:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(255,255,255,0.1); }
 
 /* Secondary: transparente, borda fina branca */
 .btn-secondary {
@@ -127,6 +131,7 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
 .btn-secondary:hover {
   border-color: var(--border-strong);
   background: var(--surface);
+  transform: translateY(-1px);
 }
 
 /* Ghost: sem borda, texto muted */
@@ -164,6 +169,12 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 24px;
+  transition: border-color 0.3s var(--ease-premium), box-shadow 0.3s var(--ease-premium);
+}
+
+.card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
 }
 
 .glow-card {
@@ -231,9 +242,9 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
   font-size: 14px;
   min-height: 44px;
   outline: none;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.2s var(--ease-premium), box-shadow 0.2s var(--ease-premium);
 }
-.input:focus { border-color: var(--border-strong); }
+.input:focus { border-color: var(--border-strong); box-shadow: 0 0 0 3px rgba(255,255,255,0.05); }
 .input::placeholder { color: var(--text-dim); }
 
 /* ============================================================

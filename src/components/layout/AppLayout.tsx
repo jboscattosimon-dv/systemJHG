@@ -55,7 +55,7 @@ export default function AppLayout() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#0D0D0D' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#000000' }}>
       <Sidebar hidden={sidebarHidden} />
       {!sidebarHidden && <div className="mobile-sidebar-backdrop" onClick={toggleSidebar} />}
 
@@ -67,7 +67,7 @@ export default function AppLayout() {
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '0 36px',
-          background: '#0D0D0D',
+          background: '#000000',
           borderBottom: '1px solid #1F1F1F',
           flexShrink: 0,
         }}>
@@ -90,7 +90,7 @@ export default function AppLayout() {
               onClick={() => navigate('/dashboard')}
               style={{ fontSize: '12px', color: '#3D3D3D', cursor: 'pointer' }}
             >
-              BarberOS
+              Noir ERP
             </span>
             {pageName && (
               <>
