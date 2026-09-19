@@ -347,10 +347,12 @@ export default function Condicionais() {
                 </div>
 
                 {error && <p style={{ fontSize: '12px', color: '#666' }}>{error}</p>}
-                <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => { setShowNovo(false); resetNovo() }}>Cancelar (Esc)</button>
+                <div className="modal-actions" style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => { setShowNovo(false); resetNovo() }}>
+                    Cancelar <span className="shortcut-hint">(Esc)</span>
+                  </button>
                   <button className="btn btn-primary" style={{ flex: 1 }} onClick={salvarNovo} disabled={saving}>
-                    {saving ? 'Salvando...' : 'Registrar Saída (F10)'}
+                    {saving ? 'Salvando...' : <>Registrar Saída <span className="shortcut-hint">(F10)</span></>}
                   </button>
                 </div>
               </div>
@@ -444,10 +446,12 @@ export default function Condicionais() {
               </div>
 
               {error && <p style={{ fontSize: '12px', color: '#666', marginBottom: '12px' }}>{error}</p>}
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setCondFechar(null)}>Cancelar (Esc)</button>
+              <div className="modal-actions" style={{ display: 'flex', gap: '10px' }}>
+                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setCondFechar(null)}>
+                  Cancelar <span className="shortcut-hint">(Esc)</span>
+                </button>
                 <button className="btn btn-primary" style={{ flex: 1 }} onClick={confirmarFechar} disabled={saving || !todosDecididos}>
-                  {saving ? 'Processando...' : 'Confirmar Fechamento (F10)'}
+                  {saving ? 'Processando...' : <>Confirmar Fechamento <span className="shortcut-hint">(F10)</span></>}
                 </button>
               </div>
             </motion.div>
