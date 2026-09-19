@@ -1,26 +1,12 @@
 import { useEffect, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Calendar, DollarSign, TrendingUp, TrendingDown, Wallet, Plus, Clock, ChevronRight, ShoppingCart, PackageOpen, UserPlus } from 'lucide-react'
+import { DollarSign, TrendingUp, TrendingDown, Wallet, Plus, ChevronRight, ShoppingCart, PackageOpen, UserPlus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { formatCurrency } from '../lib/utils'
-import type { Agendamento } from '../types'
-
-const STATUS_LABEL: Record<string, string> = {
-  pendente:   'Pendente',
-  confirmado: 'Confirmado',
-  concluido:  'Concluído',
-  cancelado:  'Cancelado',
-}
-
-const STATUS_CLASS: Record<string, string> = {
-  pendente:   'badge badge-pending',
-  confirmado: 'badge badge-confirmed',
-  concluido:  'badge badge-done',
-  cancelado:  'badge badge-canceled',
-}
+import { formatCurrency, formatDate } from '../lib/utils'
 
 interface RankItem { nome: string; total: number }
+interface CondicionalResumo { id: string; cliente_nome: string; criado_em: string; itensCount: number; total: number }
 
 function handleGlowMove(e: MouseEvent<HTMLDivElement>) {
   const rect = e.currentTarget.getBoundingClientRect()
@@ -30,12 +16,12 @@ function handleGlowMove(e: MouseEvent<HTMLDivElement>) {
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const [agenda, setAgenda] = useState<Agendamento[]>([])
   const [loading, setLoading] = useState(true)
   const [financeiro, setFinanceiro] = useState({ faturamentoMes: 0, despesasMes: 0, aReceber: 0, aPagar: 0, saldoCaixa: 0, caixaAberto: false })
   const [resumoHoje, setResumoHoje] = useState({ vendas: 0, faturamento: 0, condicionaisAbertos: 0, clientesNovos: 0 })
-  const [topServicos, setTopServicos] = useState<RankItem[]>([])
+  const [topProdutos, setTopProdutos] = useState<RankItem[]>([])
   const [topProfissionais, setTopProfissionais] = useState<RankItem[]>([])
+  const [condicionaisLista, setCondicionaisLista] = useState<CondicionalResumo[]>([])
 
   const hora = new Date().getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
@@ -43,14 +29,22 @@ export default function Dashboard() {
 
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0]
+
     supabase
-      .from('agendamentos')
-      .select('*, cliente:clientes(*), profissional:profissionais(*), servico:servicos(*)')
-      .gte('data_hora', `${today}T00:00:00`)
-      .lte('data_hora', `${today}T23:59:59`)
-      .order('data_hora')
+      .from('condicionais')
+      .select('id, criado_em, cliente:clientes(nome), itens:itens_condicional(quantidade, preco_unitario)')
+      .eq('status', 'aberto')
+      .order('criado_em', { ascending: false })
+      .limit(8)
       .then(({ data }) => {
-        setAgenda((data ?? []) as Agendamento[])
+        const rows = ((data ?? []) as unknown as { id: string; criado_em: string; cliente: { nome: string } | { nome: string }[] | null; itens: { quantidade: number; preco_unitario: number }[] }[]).map(c => ({
+          id: c.id,
+          cliente_nome: (Array.isArray(c.cliente) ? c.cliente[0]?.nome : c.cliente?.nome) ?? '—',
+          criado_em: c.criado_em,
+          itensCount: c.itens.length,
+          total: c.itens.reduce((s, i) => s + i.quantidade * i.preco_unitario, 0),
+        }))
+        setCondicionaisLista(rows)
         setLoading(false)
       })
 
@@ -108,14 +102,14 @@ export default function Dashboard() {
       .then(({ data }) => {
         const rows = ((data ?? []) as any[]).filter(i => i.comanda?.status === 'fechada' && i.comanda?.data >= primeiroDiaMes)
 
-        const servicos: Record<string, number> = {}
+        const produtosMap: Record<string, number> = {}
         const profissionaisMap: Record<string, number> = {}
         rows.forEach(i => {
           const valor = i.preco_unitario * i.quantidade
-          if (i.tipo === 'servico') servicos[i.nome] = (servicos[i.nome] ?? 0) + valor
+          if (i.tipo === 'produto') produtosMap[i.nome] = (produtosMap[i.nome] ?? 0) + valor
           if (i.profissional?.nome) profissionaisMap[i.profissional.nome] = (profissionaisMap[i.profissional.nome] ?? 0) + valor
         })
-        setTopServicos(Object.entries(servicos).map(([nome, total]) => ({ nome, total })).sort((a, b) => b.total - a.total).slice(0, 5))
+        setTopProdutos(Object.entries(produtosMap).map(([nome, total]) => ({ nome, total })).sort((a, b) => b.total - a.total).slice(0, 5))
         setTopProfissionais(Object.entries(profissionaisMap).map(([nome, total]) => ({ nome, total })).sort((a, b) => b.total - a.total).slice(0, 5))
       })
   }, [])
@@ -220,10 +214,10 @@ export default function Dashboard() {
       {/* Rankings do mês */}
       <div className="dashboard-rankings-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '28px' }}>
         <div className="card">
-          <p style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', marginBottom: '14px' }}>Serviços mais vendidos (mês)</p>
-          {topServicos.length === 0 ? (
+          <p style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', marginBottom: '14px' }}>Produtos mais vendidos (mês)</p>
+          {topProdutos.length === 0 ? (
             <p style={{ fontSize: '12px', color: '#444' }}>Sem vendas no mês.</p>
-          ) : topServicos.map(s => (
+          ) : topProdutos.map(s => (
             <div key={s.nome} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #1A1A1A' }}>
               <span style={{ fontSize: '13px', color: '#A3A3A3' }}>{s.nome}</span>
               <span style={{ fontSize: '13px', color: '#FFFFFF', fontWeight: 600 }}>{formatCurrency(s.total)}</span>
@@ -243,7 +237,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Agenda do dia */}
+      {/* Condicionais em aberto */}
       <motion.div
         className="card"
         style={{ padding: 0, overflow: 'hidden' }}
@@ -258,29 +252,32 @@ export default function Dashboard() {
           borderBottom: '1px solid #2A2A2A',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Calendar size={15} style={{ color: '#666' }} strokeWidth={1.75} />
-            <span style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>Agenda de Hoje</span>
+            <PackageOpen size={15} style={{ color: '#666' }} strokeWidth={1.75} />
+            <span style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>Condicionais em Aberto</span>
             <span style={{
               fontSize: '11px', fontWeight: 600,
               padding: '2px 8px', borderRadius: '99px',
               background: 'rgba(255,255,255,0.07)', color: '#A3A3A3',
             }}>
-              {agenda.length}
+              {resumoHoje.condicionaisAbertos}
             </span>
           </div>
-          <button style={{
-            display: 'flex', alignItems: 'center', gap: '4px',
-            fontSize: '12px', color: '#555', background: 'none', border: 'none',
-            cursor: 'pointer', transition: 'color 0.15s',
-          }}>
-            Ver agenda <ChevronRight size={12} />
+          <button
+            onClick={() => navigate('/condicional')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '4px',
+              fontSize: '12px', color: '#555', background: 'none', border: 'none',
+              cursor: 'pointer', transition: 'color 0.15s',
+            }}
+          >
+            Ver todos <ChevronRight size={12} />
           </button>
         </div>
 
         {/* Table header */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '70px 1fr 160px 140px',
+          gridTemplateColumns: '1fr 100px 130px 120px',
           padding: '10px 24px',
           borderBottom: '1px solid #222',
           fontSize: '10px',
@@ -290,10 +287,10 @@ export default function Dashboard() {
           letterSpacing: '0.1em',
           background: 'rgba(0,0,0,0.2)',
         }}>
-          <span>Hora</span>
-          <span>Cliente / Serviço</span>
-          <span>Profissional</span>
-          <span>Status</span>
+          <span>Cliente</span>
+          <span>Itens</span>
+          <span>Total</span>
+          <span>Desde</span>
         </div>
 
         {/* Rows */}
@@ -301,42 +298,30 @@ export default function Dashboard() {
           <div style={{ padding: '48px', textAlign: 'center', color: '#555', fontSize: '13px' }}>
             Carregando...
           </div>
-        ) : agenda.map((ag, i) => {
-          const hora = new Date(ag.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-          return (
-            <motion.div
-              key={ag.id}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '70px 1fr 160px 140px',
-                padding: '14px 24px',
-                borderBottom: i < agenda.length - 1 ? '1px solid #1F1F1F' : 'none',
-                cursor: 'pointer',
-                transition: 'background 0.12s ease',
-              }}
-              whileHover={{ backgroundColor: 'rgba(255,255,255,0.02)' }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Clock size={11} style={{ color: '#333' }} />
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>
-                  {hora}
-                </span>
-              </div>
-              <div>
-                <p style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF' }}>{ag.cliente?.nome}</p>
-                <p style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>{ag.servico?.nome}</p>
-              </div>
-              <div style={{ fontSize: '13px', color: '#A3A3A3', display: 'flex', alignItems: 'center' }}>
-                {ag.profissional?.nome}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <span className={STATUS_CLASS[ag.status] ?? 'badge badge-pending'}>
-                  {STATUS_LABEL[ag.status]}
-                </span>
-              </div>
-            </motion.div>
-          )
-        })}
+        ) : condicionaisLista.length === 0 ? (
+          <div style={{ padding: '48px', textAlign: 'center', color: '#444', fontSize: '13px' }}>
+            Nenhum condicional em aberto.
+          </div>
+        ) : condicionaisLista.map((c, i) => (
+          <motion.div
+            key={c.id}
+            onClick={() => navigate('/condicional')}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 100px 130px 120px',
+              padding: '14px 24px',
+              borderBottom: i < condicionaisLista.length - 1 ? '1px solid #1F1F1F' : 'none',
+              cursor: 'pointer',
+              transition: 'background 0.12s ease',
+            }}
+            whileHover={{ backgroundColor: 'rgba(255,255,255,0.02)' }}
+          >
+            <span style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF' }}>{c.cliente_nome}</span>
+            <span style={{ fontSize: '13px', color: '#A3A3A3' }}>{c.itensCount}</span>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>{formatCurrency(c.total)}</span>
+            <span style={{ fontSize: '12px', color: '#666' }}>{formatDate(c.criado_em)}</span>
+          </motion.div>
+        ))}
       </motion.div>
     </div>
   )
