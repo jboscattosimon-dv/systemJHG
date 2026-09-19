@@ -69,6 +69,17 @@ const NAV_RODAPE: NavItemDef[] = [
   { to: '/configuracoes', icon: Settings, label: 'Configurações' },
 ]
 
+// Telas que ficam sempre visíveis, mesmo com permissões restritas: Dashboard
+// (é a home depois do login) e Usuários (senão quem tem permissão de gerenciar
+// a equipe pode se trancar pra fora da própria tela de gerenciar permissões).
+const SEMPRE_VISIVEL = new Set(['usuarios'])
+
+// Telas que um gerente pode liberar/restringir para outro usuário da loja.
+export const TELAS_CONFIGURAVEIS: { grupo: string; itens: { key: string; label: string }[] }[] = [
+  ...NAV_GRUPOS.map(g => ({ grupo: g.label, itens: g.items.filter(i => !SEMPRE_VISIVEL.has(i.to.slice(1))).map(i => ({ key: i.to.slice(1), label: i.label })) })),
+  { grupo: 'Outros', itens: NAV_RODAPE.map(i => ({ key: i.to.slice(1), label: i.label })) },
+].filter(g => g.itens.length > 0)
+
 function NavItem({ to, icon: Icon, label }: { to: string; icon: typeof LayoutDashboard; label: string }) {
   return (
     <NavLink to={to} style={{ display: 'block', marginBottom: '2px' }}>
@@ -157,12 +168,18 @@ function NavGroup({ label, icon: Icon, items, defaultOpen }: { label: string; ic
 
 export default function Sidebar({ hidden }: { hidden: boolean }) {
   const { user, signOut } = useAuth()
-  const { papel } = usePerfil()
+  const { papel, telasPermitidas } = usePerfil()
   const navigate = useNavigate()
   const location = useLocation()
   const name = user?.email?.split('@')[0] ?? 'Usuário'
   const ini = initials(name)
   const isSuperAdmin = papel === 'super_admin'
+
+  const liberada = (to: string) => SEMPRE_VISIVEL.has(to.slice(1)) || !telasPermitidas || telasPermitidas.includes(to.slice(1))
+  const navGruposVisiveis = NAV_GRUPOS
+    .map(g => ({ ...g, items: g.items.filter(i => liberada(i.to)) }))
+    .filter(g => g.items.length > 0)
+  const navRodapeVisivel = NAV_RODAPE.filter(i => liberada(i.to))
 
   async function handleSignOut() {
     await signOut()
@@ -231,7 +248,7 @@ export default function Sidebar({ hidden }: { hidden: boolean }) {
           <>
             {NAV_TOPO.map(item => <NavItem key={item.to} {...item} />)}
             <div style={{ height: '10px' }} />
-            {NAV_GRUPOS.map(grupo => (
+            {navGruposVisiveis.map(grupo => (
               <NavGroup
                 key={grupo.label}
                 label={grupo.label}
@@ -241,7 +258,7 @@ export default function Sidebar({ hidden }: { hidden: boolean }) {
               />
             ))}
             <div style={{ height: '10px' }} />
-            {NAV_RODAPE.map(item => <NavItem key={item.to} {...item} />)}
+            {navRodapeVisivel.map(item => <NavItem key={item.to} {...item} />)}
           </>
         )}
       </nav>

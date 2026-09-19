@@ -294,6 +294,7 @@ export interface UsuarioListado {
   criado_em: string
   empresa_id?: string
   empresa_nome?: string
+  telas_permitidas?: string[] | null
 }
 
 export interface UsuarioPerfil {

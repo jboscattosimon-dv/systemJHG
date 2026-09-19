@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
+import { usePerfil } from './hooks/usePerfil'
 import AppLayout from './components/layout/AppLayout'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
@@ -45,6 +46,14 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   return session ? <>{children}</> : <Navigate to="/login" replace />
 }
 
+// Dashboard e Usuários sempre acessíveis (mesma trava do menu — ver Sidebar.tsx).
+function TelaPermitida({ tela, children }: { tela: string; children: React.ReactNode }) {
+  const { telasPermitidas, loading } = usePerfil()
+  if (loading) return null
+  if (telasPermitidas && !telasPermitidas.includes(tela)) return <Navigate to="/dashboard" replace />
+  return <>{children}</>
+}
+
 export default function App() {
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
@@ -56,23 +65,23 @@ export default function App() {
           <Route path="/empresas"      element={<Empresas />} />
           <Route path="/empresas/:id"  element={<EmpresaDetalhe />} />
           <Route path="/dashboard"     element={<Dashboard />} />
-          <Route path="/agenda"        element={<Agenda />} />
-          <Route path="/pdv"           element={<PDV />} />
-          <Route path="/condicional"   element={<Condicionais />} />
-          <Route path="/caixa"         element={<Caixa />} />
-          <Route path="/clientes"      element={<Clientes />} />
-          <Route path="/profissionais" element={<Profissionais />} />
-          <Route path="/produtos"      element={<Produtos />} />
-          <Route path="/fornecedores"  element={<Fornecedores />} />
-          <Route path="/financeiro"    element={<Financeiro />} />
-          <Route path="/categorias"    element={<Categorias />} />
-          <Route path="/contas-pagar"   element={<ContasPagar />} />
-          <Route path="/contas-receber" element={<ContasReceber />} />
-          <Route path="/comissoes"     element={<Comissoes />} />
-          <Route path="/dre"           element={<DRE />} />
-          <Route path="/relatorios"    element={<Relatorios />} />
-          <Route path="/auditoria"     element={<Auditoria />} />
-          <Route path="/configuracoes" element={<Configuracoes />} />
+          <Route path="/agenda"        element={<TelaPermitida tela="agenda"><Agenda /></TelaPermitida>} />
+          <Route path="/pdv"           element={<TelaPermitida tela="pdv"><PDV /></TelaPermitida>} />
+          <Route path="/condicional"   element={<TelaPermitida tela="condicional"><Condicionais /></TelaPermitida>} />
+          <Route path="/caixa"         element={<TelaPermitida tela="caixa"><Caixa /></TelaPermitida>} />
+          <Route path="/clientes"      element={<TelaPermitida tela="clientes"><Clientes /></TelaPermitida>} />
+          <Route path="/profissionais" element={<TelaPermitida tela="profissionais"><Profissionais /></TelaPermitida>} />
+          <Route path="/produtos"      element={<TelaPermitida tela="produtos"><Produtos /></TelaPermitida>} />
+          <Route path="/fornecedores"  element={<TelaPermitida tela="fornecedores"><Fornecedores /></TelaPermitida>} />
+          <Route path="/financeiro"    element={<TelaPermitida tela="financeiro"><Financeiro /></TelaPermitida>} />
+          <Route path="/categorias"    element={<TelaPermitida tela="categorias"><Categorias /></TelaPermitida>} />
+          <Route path="/contas-pagar"   element={<TelaPermitida tela="contas-pagar"><ContasPagar /></TelaPermitida>} />
+          <Route path="/contas-receber" element={<TelaPermitida tela="contas-receber"><ContasReceber /></TelaPermitida>} />
+          <Route path="/comissoes"     element={<TelaPermitida tela="comissoes"><Comissoes /></TelaPermitida>} />
+          <Route path="/dre"           element={<TelaPermitida tela="dre"><DRE /></TelaPermitida>} />
+          <Route path="/relatorios"    element={<TelaPermitida tela="relatorios"><Relatorios /></TelaPermitida>} />
+          <Route path="/auditoria"     element={<TelaPermitida tela="auditoria"><Auditoria /></TelaPermitida>} />
+          <Route path="/configuracoes" element={<TelaPermitida tela="configuracoes"><Configuracoes /></TelaPermitida>} />
           <Route path="/usuarios"      element={<Usuarios />} />
         </Route>
       </Routes>

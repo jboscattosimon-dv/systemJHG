@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { ExternalLink, UserX, UserCheck } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ExternalLink, UserX, UserCheck, Shield, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { usePerfil } from '../hooks/usePerfil'
+import { useModalKeyboard } from '../hooks/useModalKeyboard'
 import { formatDate, initials } from '../lib/utils'
+import { TELAS_CONFIGURAVEIS } from '../components/layout/Sidebar'
 import type { UsuarioListado, PapelUsuario, Profissional, Empresa } from '../types'
 
 const PAPEL_LABEL: Record<PapelUsuario, string> = {
   super_admin: 'Super Admin', administrador: 'Administrador', gerente: 'Gerente', atendente: 'Atendente', profissional: 'Profissional',
 }
+
+const TODAS_TELAS_KEYS = TELAS_CONFIGURAVEIS.flatMap(g => g.itens.map(i => i.key))
 
 export default function Usuarios() {
   const { papel: meuPapel } = usePerfil()
@@ -63,6 +67,41 @@ export default function Usuarios() {
     if (err) { setError(err.message); return }
     carregar()
   }
+
+  const [permUser, setPermUser] = useState<UsuarioListado | null>(null)
+  const [permSelecionadas, setPermSelecionadas] = useState<Set<string>>(new Set())
+  const [permSaving, setPermSaving] = useState(false)
+  const [permError, setPermError] = useState('')
+
+  function abrirPermissoes(u: UsuarioListado) {
+    setPermUser(u)
+    setPermSelecionadas(new Set(u.telas_permitidas ?? TODAS_TELAS_KEYS))
+    setPermError('')
+  }
+
+  function togglePermissao(key: string) {
+    setPermSelecionadas(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
+
+  async function salvarPermissoes() {
+    if (!permUser) return
+    setPermSaving(true); setPermError('')
+    const todasMarcadas = permSelecionadas.size === TODAS_TELAS_KEYS.length
+    const { error: err } = await supabase.rpc('atualizar_telas_permitidas', {
+      p_usuario_id: permUser.usuario_id,
+      p_telas: todasMarcadas ? null : Array.from(permSelecionadas),
+    })
+    setPermSaving(false)
+    if (err) { setPermError(err.message); return }
+    setPermUser(null)
+    carregar()
+  }
+
+  const modalPermRef = useModalKeyboard(!!permUser, () => setPermUser(null), salvarPermissoes)
 
   if (souSuperAdmin) {
     const pendentes = usuarios.filter(u => !u.empresa_id && u.papel !== 'super_admin' && u.ativo)
@@ -254,7 +293,7 @@ export default function Usuarios() {
     )
   }
 
-  const colunas = '1fr 140px 180px 80px 100px'
+  const colunas = '1fr 140px 180px 80px 100px 110px'
 
   return (
     <div className="page">
@@ -279,6 +318,7 @@ export default function Usuarios() {
           <span>Vinculado a</span>
           <span>Ativo</span>
           <span>Desde</span>
+          <span>Permissões</span>
         </div>
 
         {loading ? (
@@ -325,6 +365,11 @@ export default function Usuarios() {
 
             <input type="checkbox" checked={u.ativo} onChange={e => salvar(u, 'ativo', e.target.checked)} />
             <span style={{ fontSize: '12px', color: '#444' }}>{formatDate(u.criado_em)}</span>
+            {u.papel === 'gerente' ? (
+              <button className="btn btn-secondary btn-sm" onClick={() => abrirPermissoes(u)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Shield size={12} /> Telas
+              </button>
+            ) : <span />}
           </motion.div>
         ))}
       </div>
@@ -390,6 +435,11 @@ export default function Usuarios() {
                   <input type="checkbox" checked={u.ativo} onChange={e => salvar(u, 'ativo', e.target.checked)} />
                   Ativo
                 </label>
+                {u.papel === 'gerente' && (
+                  <button className="btn btn-secondary btn-sm" onClick={() => abrirPermissoes(u)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                    <Shield size={12} /> Permissões de tela
+                  </button>
+                )}
               </div>
             </motion.div>
           ))}
@@ -400,6 +450,56 @@ export default function Usuarios() {
           Nenhum usuário encontrado (ou você não tem permissão pra ver essa tela).
         </div>
       )}
+
+      {/* Modal: Permissões de tela */}
+      <AnimatePresence>
+        {permUser && (
+          <motion.div
+            style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <motion.div ref={modalPermRef} className="card" style={{ width: '100%', maxWidth: '480px', padding: '28px', maxHeight: '85vh', overflowY: 'auto', overflowX: 'hidden' }}
+              initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <h2 style={{ fontSize: '18px', color: '#FFFFFF' }}>Permissões de tela</h2>
+                <button className="btn btn-icon" onClick={() => setPermUser(null)}><X size={14} /></button>
+              </div>
+              <p style={{ fontSize: '13px', color: '#A3A3A3', marginBottom: '18px' }}>{permUser.email}</p>
+
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '18px' }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => setPermSelecionadas(new Set(TODAS_TELAS_KEYS))}>Marcar todas</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setPermSelecionadas(new Set())}>Desmarcar todas</button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
+                {TELAS_CONFIGURAVEIS.map(grupo => (
+                  <div key={grupo.grupo}>
+                    <p style={{ fontSize: '10px', color: '#555', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>{grupo.grupo}</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {grupo.itens.map(item => (
+                        <label key={item.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#FFFFFF', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={permSelecionadas.has(item.key)} onChange={() => togglePermissao(item.key)} />
+                          {item.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {permError && <p style={{ fontSize: '12px', color: '#666', marginBottom: '12px' }}>{permError}</p>}
+              <div className="modal-actions" style={{ display: 'flex', gap: '10px' }}>
+                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setPermUser(null)}>
+                  Cancelar <span className="shortcut-hint">(Esc)</span>
+                </button>
+                <button className="btn btn-primary" style={{ flex: 1 }} onClick={salvarPermissoes} disabled={permSaving}>
+                  {permSaving ? 'Salvando...' : <>Salvar <span className="shortcut-hint">(F10)</span></>}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
