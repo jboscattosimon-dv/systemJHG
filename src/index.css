@@ -338,6 +338,12 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
 @media (max-width: 768px) {
   .page { padding: 16px; }
 
+  /* iOS/Android dão zoom automático ao focar um campo com fonte
+     menor que 16px — trava em 16px só no mobile pra evitar isso. */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
   /* Tabelas/listas com colunas em px fixo: em vez de arrastar pro lado ou
      espremer, cada linha vira um card próprio (mesmo visual usado em
      Clientes/Profissionais), empilhado com espaço entre eles */
