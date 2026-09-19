@@ -98,6 +98,7 @@ export interface ItemComanda {
   tipo: 'servico' | 'produto'
   referencia_id: string
   nome: string
+  tamanho?: string
   quantidade: number
   preco_unitario: number
   profissional_id?: string
@@ -325,6 +326,7 @@ export interface ItemCondicional {
   condicional_id: string
   produto_id: string
   nome: string
+  tamanho?: string
   quantidade: number
   preco_unitario: number
   status: ItemCondicionalStatus

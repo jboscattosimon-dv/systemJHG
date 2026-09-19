@@ -20,7 +20,7 @@ type ItemCatalogo =
   | { tipo: 'servico'; dado: Servico }
   | { tipo: 'produto'; dado: Produto }
 
-export default function PDV() {
+export default function Vendas() {
   const [search, setSearch]   = useState('')
   const [servicos, setServicos] = useState<Servico[]>([])
   const [produtos, setProdutos] = useState<Produto[]>([])
@@ -36,6 +36,7 @@ export default function PDV() {
   const [error, setError]       = useState('')
   const [showScanner, setShowScanner] = useState(false)
   const [scanAviso, setScanAviso] = useState('')
+  const [tamanhoPicker, setTamanhoPicker] = useState<Produto | null>(null)
 
   // No crédito, produto com preço a prazo cadastrado cobra esse valor em vez do preço à vista.
   function precoEfetivo(item: ItemComanda): number {
@@ -46,12 +47,16 @@ export default function PDV() {
 
   const total = cart.reduce((s, i) => s + precoEfetivo(i) * i.quantidade, 0)
 
+  function carregarProdutos() {
+    return supabase.from('produtos').select('*, tamanhos:produto_tamanhos(*)').eq('ativo', true).order('nome')
+      .then(({ data }) => { if (data) setProdutos(data as Produto[]) })
+  }
+
   useEffect(() => {
     supabase.from('servicos').select('*').eq('ativo', true).order('nome')
       .then(({ data }) => { if (data) setServicos(data as Servico[]) })
 
-    supabase.from('produtos').select('*').eq('ativo', true).order('nome')
-      .then(({ data }) => { if (data) setProdutos(data as Produto[]) })
+    carregarProdutos()
 
     supabase.from('profissionais').select('*').eq('ativo', true).order('nome')
       .then(({ data }) => { if (data) setProfissionais(data as Profissional[]) })
@@ -110,12 +115,23 @@ export default function PDV() {
     })
   }
 
+  // Produto com tamanho cadastrado pede pra escolher qual antes de entrar na comanda.
   function addProduto(p: Produto) {
+    if (p.tamanhos && p.tamanhos.length > 0) { setTamanhoPicker(p); return }
     setCart(prev => {
-      const ex = prev.find(i => i.tipo === 'produto' && i.referencia_id === p.id)
+      const ex = prev.find(i => i.tipo === 'produto' && i.referencia_id === p.id && !i.tamanho)
       if (ex) return prev.map(i => i.id === ex.id ? { ...i, quantidade: i.quantidade + 1 } : i)
       return [...prev, { id: uid(), tipo: 'produto', referencia_id: p.id, nome: p.nome, quantidade: 1, preco_unitario: p.preco_venda, profissional_id: profissionalId || undefined }]
     })
+  }
+
+  function addProdutoComTamanho(p: Produto, tamanho: string) {
+    setCart(prev => {
+      const ex = prev.find(i => i.tipo === 'produto' && i.referencia_id === p.id && i.tamanho === tamanho)
+      if (ex) return prev.map(i => i.id === ex.id ? { ...i, quantidade: i.quantidade + 1 } : i)
+      return [...prev, { id: uid(), tipo: 'produto', referencia_id: p.id, nome: p.nome, tamanho, quantidade: 1, preco_unitario: p.preco_venda, profissional_id: profissionalId || undefined }]
+    })
+    setTamanhoPicker(null)
   }
 
   function changeQty(id: string, delta: number) {
@@ -138,6 +154,7 @@ export default function PDV() {
         tipo: i.tipo,
         referencia_id: i.referencia_id,
         nome: i.nome,
+        tamanho: i.tamanho ?? null,
         quantidade: i.quantidade,
         preco_unitario: precoEfetivo(i),
         profissional_id: i.profissional_id ?? null,
@@ -152,11 +169,11 @@ export default function PDV() {
     setClienteNome('')
     setShowPayModal(false)
     setTimeout(() => setDone(false), 2500)
-    supabase.from('produtos').select('*').eq('ativo', true).order('nome')
-      .then(({ data }) => { if (data) setProdutos(data as Produto[]) })
+    carregarProdutos()
   }
 
   const modalRef = useModalKeyboard(showPayModal, () => setShowPayModal(false), finalizarVenda)
+  const modalTamanhoRef = useModalKeyboard(!!tamanhoPicker, () => setTamanhoPicker(null))
 
   return (
     <div className="page pdv-layout" style={{ display: 'flex', gap: '24px', height: 'calc(100vh - 64px)', paddingBottom: '0', overflow: 'hidden' }}>
@@ -217,6 +234,7 @@ export default function PDV() {
               </div>
             ) : itensCatalogo.map(item => {
               const baixo = item.tipo === 'produto' && item.dado.estoque_atual <= item.dado.estoque_minimo
+              const temTamanhos = item.tipo === 'produto' && item.dado.tamanhos && item.dado.tamanhos.length > 0
               return (
                 <motion.button
                   key={`${item.tipo}-${item.dado.id}`}
@@ -233,11 +251,25 @@ export default function PDV() {
                     </span>
                   </div>
                   <p style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', marginBottom: '4px' }}>{item.dado.nome}</p>
-                  <p style={{ fontSize: '11px', color: baixo ? '#A3A3A3' : '#555' }}>
-                    {item.tipo === 'servico'
-                      ? `${item.dado.duracao_minutos} min`
-                      : `${item.dado.estoque_atual} ${item.dado.unidade} em estoque`}
-                  </p>
+                  {item.tipo === 'servico' ? (
+                    <p style={{ fontSize: '11px', color: '#555' }}>{item.dado.duracao_minutos} min</p>
+                  ) : temTamanhos ? (
+                    <p style={{ fontSize: '11px', color: '#555', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {item.dado.tamanhos!.map(t => (
+                        <span key={t.tamanho} style={{
+                          padding: '1px 6px', borderRadius: '99px',
+                          background: t.quantidade > 0 ? 'rgba(255,255,255,0.06)' : 'transparent',
+                          border: '1px solid #2A2A2A', color: t.quantidade > 0 ? '#A3A3A3' : '#444',
+                        }}>
+                          {t.tamanho}:{t.quantidade}
+                        </span>
+                      ))}
+                    </p>
+                  ) : (
+                    <p style={{ fontSize: '11px', color: baixo ? '#A3A3A3' : '#555' }}>
+                      {item.dado.estoque_atual} {item.dado.unidade} em estoque
+                    </p>
+                  )}
                   <p style={{ fontSize: '16px', fontWeight: 700, color: '#FFFFFF', marginTop: '10px' }}>
                     {formatCurrency(item.tipo === 'servico' ? item.dado.preco : item.dado.preco_venda)}
                   </p>
@@ -313,7 +345,7 @@ export default function PDV() {
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: '12px', fontWeight: 500, color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {item.nome}
+                    {item.nome}{item.tamanho && <span style={{ color: '#777' }}> — {item.tamanho}</span>}
                   </p>
                   <p style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>
                     {formatCurrency(precoEfetivo(item))}
@@ -355,6 +387,48 @@ export default function PDV() {
           </button>
         </div>
       </div>
+
+      {/* Modal: escolher tamanho */}
+      <AnimatePresence>
+        {tamanhoPicker && (
+          <motion.div
+            style={{ position: 'fixed', inset: 0, zIndex: 55, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <motion.div
+              ref={modalTamanhoRef}
+              className="card"
+              style={{ width: '100%', maxWidth: '360px', padding: '24px' }}
+              initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 16 }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <h2 style={{ fontSize: '16px', color: '#FFFFFF' }}>Escolher tamanho</h2>
+                <button className="btn btn-icon" onClick={() => setTamanhoPicker(null)}><X size={14} /></button>
+              </div>
+              <p style={{ fontSize: '13px', color: '#A3A3A3', marginBottom: '18px' }}>{tamanhoPicker.nome}</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {tamanhoPicker.tamanhos!.map(t => (
+                  <button
+                    key={t.tamanho}
+                    onClick={() => addProdutoComTamanho(tamanhoPicker, t.tamanho)}
+                    disabled={t.quantidade <= 0}
+                    style={{
+                      padding: '10px 16px', borderRadius: '8px', fontFamily: 'inherit',
+                      border: '1px solid #2A2A2A', background: 'transparent',
+                      color: t.quantidade > 0 ? '#FFFFFF' : '#444',
+                      fontSize: '13px', fontWeight: 600,
+                      cursor: t.quantidade > 0 ? 'pointer' : 'not-allowed',
+                      opacity: t.quantidade > 0 ? 1 : 0.5,
+                    }}
+                  >
+                    {t.tamanho} <span style={{ fontWeight: 400, color: '#777', marginLeft: '4px' }}>({t.quantidade})</span>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Payment modal */}
       <AnimatePresence>
@@ -399,9 +473,11 @@ export default function PDV() {
                 <span style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(total)}</span>
               </div>
               {error && <p style={{ fontSize: '12px', color: '#666', marginBottom: '12px' }}>{error}</p>}
-              <button className="btn btn-primary btn-full" onClick={finalizarVenda} disabled={saving}>
-                {saving ? 'Processando...' : 'Confirmar Pagamento (F10)'}
-              </button>
+              <div className="modal-actions">
+                <button className="btn btn-primary btn-full" onClick={finalizarVenda} disabled={saving}>
+                  {saving ? 'Processando...' : <>Confirmar Pagamento <span className="shortcut-hint">(F10)</span></>}
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

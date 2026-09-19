@@ -134,7 +134,7 @@ export default function Caixa() {
         <div className="card" style={{ padding: '56px', textAlign: 'center' }}>
           <p style={{ fontSize: '14px', color: '#555' }}>O caixa está fechado.</p>
           <p style={{ fontSize: '12px', color: '#444', marginTop: '6px' }}>
-            Abra o caixa para poder vender no PDV e registrar movimentos.
+            Abra o caixa para poder vender em Vendas e registrar movimentos.
           </p>
         </div>
       ) : (

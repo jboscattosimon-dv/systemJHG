@@ -45,7 +45,7 @@ const NAV_GRUPOS: { label: string; icon: typeof LayoutDashboard; items: NavItemD
     icon: ArrowLeftRight,
     items: [
       { to: '/agenda',         icon: Calendar,        label: 'Agenda'           },
-      { to: '/pdv',            icon: ShoppingCart,    label: 'PDV'              },
+      { to: '/vendas',         icon: ShoppingCart,    label: 'Vendas'           },
       { to: '/condicional',    icon: PackageOpen,     label: 'Condicional'      },
       { to: '/caixa',          icon: Wallet,          label: 'Caixa'            },
       { to: '/financeiro',     icon: BarChart2,       label: 'Financeiro'       },

@@ -64,7 +64,7 @@ export default function Comissoes() {
     <div className="page">
       <div style={{ marginBottom: '24px' }}>
         <h1 style={{ fontSize: '24px', color: '#FFFFFF' }}>Comissões</h1>
-        <p style={{ fontSize: '13px', color: '#555', marginTop: '3px' }}>Geradas automaticamente pelas vendas do PDV</p>
+        <p style={{ fontSize: '13px', color: '#555', marginTop: '3px' }}>Geradas automaticamente pelas vendas</p>
       </div>
 
       <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>

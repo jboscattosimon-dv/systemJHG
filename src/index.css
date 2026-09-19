@@ -482,7 +482,7 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
   .agenda-week-inner { min-width: 720px; }
   .agenda-month-inner { min-width: 560px; }
 
-  /* PDV: catálogo e comanda empilham em vez de ficar lado a lado */
+  /* Vendas: catálogo e comanda empilham em vez de ficar lado a lado */
   .pdv-layout {
     flex-direction: column !important;
     height: auto !important;

@@ -8,7 +8,7 @@ import Empresas from './pages/Empresas'
 import EmpresaDetalhe from './pages/EmpresaDetalhe'
 import Dashboard from './pages/Dashboard'
 import Agenda from './pages/Agenda'
-import PDV from './pages/PDV'
+import Vendas from './pages/Vendas'
 import Condicionais from './pages/Condicionais'
 import Caixa from './pages/Caixa'
 import Clientes from './pages/Clientes'
@@ -61,12 +61,13 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/cadastro" element={<Signup />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/pdv" element={<Navigate to="/vendas" replace />} />
         <Route element={<PrivateRoute><AppLayout /></PrivateRoute>}>
           <Route path="/empresas"      element={<Empresas />} />
           <Route path="/empresas/:id"  element={<EmpresaDetalhe />} />
           <Route path="/dashboard"     element={<Dashboard />} />
           <Route path="/agenda"        element={<TelaPermitida tela="agenda"><Agenda /></TelaPermitida>} />
-          <Route path="/pdv"           element={<TelaPermitida tela="pdv"><PDV /></TelaPermitida>} />
+          <Route path="/vendas"        element={<TelaPermitida tela="vendas"><Vendas /></TelaPermitida>} />
           <Route path="/condicional"   element={<TelaPermitida tela="condicional"><Condicionais /></TelaPermitida>} />
           <Route path="/caixa"         element={<TelaPermitida tela="caixa"><Caixa /></TelaPermitida>} />
           <Route path="/clientes"      element={<TelaPermitida tela="clientes"><Clientes /></TelaPermitida>} />

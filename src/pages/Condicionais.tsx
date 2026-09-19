@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, type KeyboardEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, X, Minus, Trash2, Search, Package, Check, RotateCcw } from 'lucide-react'
+import { Plus, X, Minus, Trash2, Search, Package, Check, RotateCcw, ScanLine } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency, formatDate } from '../lib/utils'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
+import ScannerCamera from '../components/ScannerCamera'
 import type { Condicional, Cliente, Produto, PagamentoMetodo } from '../types'
 
 const PAGAMENTOS: { id: PagamentoMetodo; label: string }[] = [
@@ -14,7 +15,7 @@ const PAGAMENTOS: { id: PagamentoMetodo; label: string }[] = [
 ]
 
 type Filtro = 'aberto' | 'fechado' | 'todos'
-type ItemNovo = { produto_id: string; nome: string; quantidade: number; preco_unitario: number }
+type ItemNovo = { produto_id: string; nome: string; tamanho?: string; quantidade: number; preco_unitario: number }
 type Decisao = 'vendido' | 'devolvido'
 
 const STATUS_LABEL: Record<string, string> = { aberto: 'Aberto', fechado: 'Fechado' }
@@ -34,6 +35,9 @@ export default function Condicionais() {
   const [observacao, setObservacao] = useState('')
   const [itensNovo, setItensNovo] = useState<ItemNovo[]>([])
   const [buscaProduto, setBuscaProduto] = useState('')
+  const [tamanhoPicker, setTamanhoPicker] = useState<Produto | null>(null)
+  const [showScanner, setShowScanner] = useState(false)
+  const [scanAviso, setScanAviso] = useState('')
 
   // Fechar condicional
   const [condFechar, setCondFechar] = useState<Condicional | null>(null)
@@ -43,7 +47,7 @@ export default function Condicionais() {
   const carregar = useCallback(() => {
     setLoading(true)
     supabase.from('condicionais')
-      .select('*, cliente:clientes(nome, telefone), itens:itens_condicional(id, produto_id, nome, quantidade, preco_unitario, status)')
+      .select('*, cliente:clientes(nome, telefone), itens:itens_condicional(id, produto_id, nome, tamanho, quantidade, preco_unitario, status)')
       .order('criado_em', { ascending: false })
       .then(({ data, error: err }) => {
         if (err) { setError(err.message); setLoading(false); return }
@@ -56,7 +60,7 @@ export default function Condicionais() {
     carregar()
     supabase.from('clientes').select('*').eq('ativo', true).order('nome')
       .then(({ data }) => { if (data) setClientes(data as Cliente[]) })
-    supabase.from('produtos').select('*').eq('ativo', true).order('nome')
+    supabase.from('produtos').select('*, tamanhos:produto_tamanhos(*)').eq('ativo', true).order('nome')
       .then(({ data }) => { if (data) setProdutos(data as Produto[]) })
   }, [carregar])
 
@@ -73,18 +77,53 @@ export default function Condicionais() {
     setClienteId(''); setObservacao(''); setItensNovo([]); setBuscaProduto(''); setError('')
   }
 
+  // Produto com tamanho cadastrado pede pra escolher qual antes de entrar na lista.
   function addItemNovo(p: Produto) {
+    if (p.tamanhos && p.tamanhos.length > 0) { setTamanhoPicker(p); setBuscaProduto(''); return }
     setItensNovo(prev => {
-      const ex = prev.find(i => i.produto_id === p.id)
-      if (ex) return prev.map(i => i.produto_id === p.id ? { ...i, quantidade: i.quantidade + 1 } : i)
+      const ex = prev.find(i => i.produto_id === p.id && !i.tamanho)
+      if (ex) return prev.map(i => i === ex ? { ...i, quantidade: i.quantidade + 1 } : i)
       return [...prev, { produto_id: p.id, nome: p.nome, quantidade: 1, preco_unitario: p.preco_venda }]
     })
+    setBuscaProduto('')
   }
 
-  function changeQtyNovo(produtoId: string, delta: number) {
+  function addItemNovoComTamanho(p: Produto, tamanho: string) {
+    setItensNovo(prev => {
+      const ex = prev.find(i => i.produto_id === p.id && i.tamanho === tamanho)
+      if (ex) return prev.map(i => i === ex ? { ...i, quantidade: i.quantidade + 1 } : i)
+      return [...prev, { produto_id: p.id, nome: p.nome, tamanho, quantidade: 1, preco_unitario: p.preco_venda }]
+    })
+    setTamanhoPicker(null)
+  }
+
+  function changeQtyNovo(produtoId: string, tamanho: string | undefined, delta: number) {
     setItensNovo(prev => prev
-      .map(i => i.produto_id === produtoId ? { ...i, quantidade: Math.max(0, i.quantidade + delta) } : i)
+      .map(i => (i.produto_id === produtoId && i.tamanho === tamanho) ? { ...i, quantidade: Math.max(0, i.quantidade + delta) } : i)
       .filter(i => i.quantidade > 0))
+  }
+
+  function buscarPorCodigo(codigo: string): Produto | undefined {
+    const alvo = codigo.trim().toLowerCase()
+    if (!alvo) return undefined
+    return produtos.find(p => (p.sku ?? '').toLowerCase() === alvo)
+  }
+
+  function handleCodigoLido(codigo: string) {
+    const produto = buscarPorCodigo(codigo)
+    if (produto) {
+      addItemNovo(produto)
+      setScanAviso('')
+    } else {
+      setScanAviso(`Nenhum produto com o código "${codigo}".`)
+      setTimeout(() => setScanAviso(''), 3000)
+    }
+  }
+
+  function handleBuscaKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== 'Enter') return
+    const produto = buscarPorCodigo(buscaProduto)
+    if (produto) addItemNovo(produto)
   }
 
   const totalNovo = itensNovo.reduce((s, i) => s + i.preco_unitario * i.quantidade, 0)
@@ -95,7 +134,7 @@ export default function Condicionais() {
     setSaving(true); setError('')
     const { error: err } = await supabase.rpc('criar_condicional', {
       p_cliente_id: clienteId,
-      p_itens: itensNovo.map(i => ({ produto_id: i.produto_id, nome: i.nome, quantidade: i.quantidade, preco_unitario: i.preco_unitario })),
+      p_itens: itensNovo.map(i => ({ produto_id: i.produto_id, nome: i.nome, tamanho: i.tamanho ?? null, quantidade: i.quantidade, preco_unitario: i.preco_unitario })),
       p_observacao: observacao || null,
     })
     setSaving(false)
@@ -147,6 +186,7 @@ export default function Condicionais() {
 
   const modalNovoRef = useModalKeyboard(showNovo, () => { setShowNovo(false); resetNovo() }, salvarNovo)
   const modalFecharRef = useModalKeyboard(!!condFechar, () => setCondFechar(null), confirmarFechar)
+  const modalTamanhoRef = useModalKeyboard(!!tamanhoPicker, () => setTamanhoPicker(null))
 
   return (
     <div className="page">
@@ -278,25 +318,41 @@ export default function Condicionais() {
 
                 <div className="field">
                   <label className="label">Buscar produto</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 14px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                    <Search size={13} style={{ color: '#444', flexShrink: 0 }} />
-                    <input
-                      style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: '13px', color: '#FFFFFF', fontFamily: 'inherit' }}
-                      placeholder="Nome do produto..."
-                      value={buscaProduto}
-                      onChange={e => setBuscaProduto(e.target.value)}
-                    />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 14px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                      <Search size={13} style={{ color: '#444', flexShrink: 0 }} />
+                      <input
+                        style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', fontSize: '13px', color: '#FFFFFF', fontFamily: 'inherit' }}
+                        placeholder="Nome do produto, ou ler código..."
+                        value={buscaProduto}
+                        onChange={e => setBuscaProduto(e.target.value)}
+                        onKeyDown={handleBuscaKeyDown}
+                      />
+                    </div>
+                    <button
+                      onClick={() => setShowScanner(true)}
+                      title="Ler código com a câmera"
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        width: '38px', height: '38px', flexShrink: 0,
+                        background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px',
+                        color: '#A3A3A3', cursor: 'pointer',
+                      }}
+                    >
+                      <ScanLine size={15} />
+                    </button>
                   </div>
+                  {scanAviso && <p style={{ fontSize: '11px', color: '#666', marginTop: '6px' }}>{scanAviso}</p>}
                 </div>
 
                 {buscaProduto && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '160px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '200px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px' }}>
                     {produtosFiltrados.length === 0 ? (
                       <p style={{ fontSize: '12px', color: '#555', padding: '8px' }}>Nenhum produto encontrado.</p>
                     ) : produtosFiltrados.slice(0, 8).map(p => (
                       <button
                         key={p.id}
-                        onClick={() => { addItemNovo(p); setBuscaProduto('') }}
+                        onClick={() => addItemNovo(p)}
                         style={{
                           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
                           width: '100%', padding: '8px 10px', borderRadius: '6px', border: 'none', background: 'transparent',
@@ -305,10 +361,21 @@ export default function Condicionais() {
                         onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
                         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                       >
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden', flex: 1 }}>
                           <Package size={12} style={{ color: '#555', flexShrink: 0 }} />
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome}</span>
                         </span>
+                        {p.tamanhos && p.tamanhos.length > 0 ? (
+                          <span style={{ display: 'flex', gap: '3px', flexShrink: 0 }}>
+                            {p.tamanhos.map(t => (
+                              <span key={t.tamanho} style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '99px', border: '1px solid #2A2A2A', color: t.quantidade > 0 ? '#A3A3A3' : '#444' }}>
+                                {t.tamanho}:{t.quantidade}
+                              </span>
+                            ))}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '11px', color: '#555', flexShrink: 0 }}>{p.estoque_atual} em estoque</span>
+                        )}
                         <span style={{ color: '#A3A3A3', flexShrink: 0 }}>{formatCurrency(p.preco_venda)}</span>
                       </button>
                     ))}
@@ -319,24 +386,26 @@ export default function Condicionais() {
                   {itensNovo.length === 0 ? (
                     <p style={{ fontSize: '12px', color: '#444', textAlign: 'center', padding: '16px' }}>Nenhum produto adicionado ainda.</p>
                   ) : itensNovo.map(item => (
-                    <div key={item.produto_id} style={{
+                    <div key={`${item.produto_id}-${item.tamanho ?? ''}`} style={{
                       display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px',
                       borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid #252525',
                     }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: '12px', fontWeight: 500, color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nome}</p>
+                        <p style={{ fontSize: '12px', fontWeight: 500, color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {item.nome}{item.tamanho && <span style={{ color: '#777' }}> — {item.tamanho}</span>}
+                        </p>
                         <p style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>{formatCurrency(item.preco_unitario)}</p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <button onClick={() => changeQtyNovo(item.produto_id, -1)} style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid #333', background: 'transparent', color: '#666', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <button onClick={() => changeQtyNovo(item.produto_id, item.tamanho, -1)} style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid #333', background: 'transparent', color: '#666', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <Minus size={10} />
                         </button>
                         <span style={{ fontSize: '13px', fontWeight: 700, color: '#FFFFFF', minWidth: '16px', textAlign: 'center' }}>{item.quantidade}</span>
-                        <button onClick={() => changeQtyNovo(item.produto_id, 1)} style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid #333', background: 'transparent', color: '#666', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <button onClick={() => changeQtyNovo(item.produto_id, item.tamanho, 1)} style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid #333', background: 'transparent', color: '#666', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <Plus size={10} />
                         </button>
                       </div>
-                      <button onClick={() => changeQtyNovo(item.produto_id, -item.quantidade)} style={{ background: 'transparent', border: 'none', color: '#333', cursor: 'pointer', padding: '2px', display: 'flex' }}>
+                      <button onClick={() => changeQtyNovo(item.produto_id, item.tamanho, -item.quantidade)} style={{ background: 'transparent', border: 'none', color: '#333', cursor: 'pointer', padding: '2px', display: 'flex' }}>
                         <Trash2 size={12} />
                       </button>
                     </div>
@@ -370,6 +439,58 @@ export default function Condicionais() {
         )}
       </AnimatePresence>
 
+      {/* Modal: escolher tamanho */}
+      <AnimatePresence>
+        {tamanhoPicker && (
+          <motion.div
+            style={{ position: 'fixed', inset: 0, zIndex: 55, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <motion.div
+              ref={modalTamanhoRef}
+              className="card"
+              style={{ width: '100%', maxWidth: '360px', padding: '24px' }}
+              initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 16 }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <h2 style={{ fontSize: '16px', color: '#FFFFFF' }}>Escolher tamanho</h2>
+                <button className="btn btn-icon" onClick={() => setTamanhoPicker(null)}><X size={14} /></button>
+              </div>
+              <p style={{ fontSize: '13px', color: '#A3A3A3', marginBottom: '18px' }}>{tamanhoPicker.nome}</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {tamanhoPicker.tamanhos!.map(t => (
+                  <button
+                    key={t.tamanho}
+                    onClick={() => addItemNovoComTamanho(tamanhoPicker, t.tamanho)}
+                    disabled={t.quantidade <= 0}
+                    style={{
+                      padding: '10px 16px', borderRadius: '8px', fontFamily: 'inherit',
+                      border: '1px solid #2A2A2A', background: 'transparent',
+                      color: t.quantidade > 0 ? '#FFFFFF' : '#444',
+                      fontSize: '13px', fontWeight: 600,
+                      cursor: t.quantidade > 0 ? 'pointer' : 'not-allowed',
+                      opacity: t.quantidade > 0 ? 1 : 0.5,
+                    }}
+                  >
+                    {t.tamanho} <span style={{ fontWeight: 400, color: '#777', marginLeft: '4px' }}>({t.quantidade})</span>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Camera scanner */}
+      <AnimatePresence>
+        {showScanner && (
+          <ScannerCamera
+            onScan={codigo => { setShowScanner(false); handleCodigoLido(codigo) }}
+            onClose={() => setShowScanner(false)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Modal: Fechar Condicional */}
       <AnimatePresence>
         {condFechar && (
@@ -394,7 +515,9 @@ export default function Condicionais() {
                       borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid #252525',
                     }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF' }}>{item.nome}</p>
+                        <p style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF' }}>
+                          {item.nome}{item.tamanho && <span style={{ color: '#777' }}> — {item.tamanho}</span>}
+                        </p>
                         <p style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>
                           {item.quantidade}x {formatCurrency(decisao === 'vendido' ? precoEfetivoFechar(item) : item.preco_unitario)}
                           {decisao === 'vendido' && precoEfetivoFechar(item) !== item.preco_unitario && <span style={{ marginLeft: '4px' }}>(a prazo)</span>}
