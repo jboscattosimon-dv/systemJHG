@@ -1,7 +1,7 @@
 import { useEffect, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Calendar, Users, DollarSign, TrendingUp, TrendingDown, Wallet, Plus, Clock, ChevronRight } from 'lucide-react'
+import { Calendar, DollarSign, TrendingUp, TrendingDown, Wallet, Plus, Clock, ChevronRight, ShoppingCart, PackageOpen, UserPlus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency } from '../lib/utils'
 import type { Agendamento } from '../types'
@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [agenda, setAgenda] = useState<Agendamento[]>([])
   const [loading, setLoading] = useState(true)
   const [financeiro, setFinanceiro] = useState({ faturamentoMes: 0, despesasMes: 0, aReceber: 0, aPagar: 0, saldoCaixa: 0, caixaAberto: false })
+  const [resumoHoje, setResumoHoje] = useState({ vendas: 0, faturamento: 0, condicionaisAbertos: 0, clientesNovos: 0 })
   const [topServicos, setTopServicos] = useState<RankItem[]>([])
   const [topProfissionais, setTopProfissionais] = useState<RankItem[]>([])
 
@@ -52,6 +53,19 @@ export default function Dashboard() {
         setAgenda((data ?? []) as Agendamento[])
         setLoading(false)
       })
+
+    supabase.from('comandas').select('total').eq('status', 'fechada').eq('data', today)
+      .then(({ data }) => {
+        const rows = (data ?? []) as { total: number }[]
+        setResumoHoje(r => ({ ...r, vendas: rows.length, faturamento: rows.reduce((s, c) => s + c.total, 0) }))
+      })
+
+    supabase.from('condicionais').select('id', { count: 'exact', head: true }).eq('status', 'aberto')
+      .then(({ count }) => setResumoHoje(r => ({ ...r, condicionaisAbertos: count ?? 0 })))
+
+    supabase.from('clientes').select('id', { count: 'exact', head: true })
+      .gte('created_at', `${today}T00:00:00`).lte('created_at', `${today}T23:59:59`)
+      .then(({ count }) => setResumoHoje(r => ({ ...r, clientesNovos: count ?? 0 })))
 
     const primeiroDiaMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
 
@@ -106,19 +120,14 @@ export default function Dashboard() {
       })
   }, [])
 
-  const confirmados = agenda.filter(a => a.status === 'confirmado').length
-  const concluidos  = agenda.filter(a => a.status === 'concluido').length
-  const cancelados  = agenda.filter(a => a.status === 'cancelado' || a.status === 'nao_compareceu').length
-  const faturamentoHoje = agenda
-    .filter(a => a.status === 'concluido')
-    .reduce((sum, a) => sum + (a.valor ?? a.servico?.preco ?? 0), 0)
+  const ticketMedioHoje = resumoHoje.vendas > 0 ? resumoHoje.faturamento / resumoHoje.vendas : 0
 
   const stats = [
-    { label: 'Agendamentos', value: agenda.length, sub: 'hoje', icon: Calendar, to: '/agenda' },
-    { label: 'Confirmados',  value: confirmados,   sub: 'aguardando', icon: Users, to: '/agenda' },
-    { label: 'Concluídos',   value: concluidos,    sub: 'finalizados', icon: TrendingUp, to: '/agenda' },
-    { label: 'Cancelamentos', value: cancelados,   sub: 'hoje', icon: TrendingDown, to: '/agenda' },
-    { label: 'Faturamento',  value: formatCurrency(faturamentoHoje), sub: 'hoje', icon: DollarSign, to: '/relatorios' },
+    { label: 'Vendas',       value: resumoHoje.vendas, sub: 'hoje', icon: ShoppingCart, to: '/vendas' },
+    { label: 'Faturamento',  value: formatCurrency(resumoHoje.faturamento), sub: 'hoje', icon: DollarSign, to: '/relatorios' },
+    { label: 'Ticket médio', value: formatCurrency(ticketMedioHoje), sub: 'hoje', icon: TrendingUp, to: '/relatorios' },
+    { label: 'Condicional',  value: resumoHoje.condicionaisAbertos, sub: 'em aberto', icon: PackageOpen, to: '/condicional' },
+    { label: 'Clientes',     value: resumoHoje.clientesNovos, sub: 'novos hoje', icon: UserPlus, to: '/clientes' },
   ]
 
   const statsFinanceiro = [
@@ -147,8 +156,8 @@ export default function Dashboard() {
           <p style={{ fontSize: '14px', color: '#A3A3A3', marginTop: '4px' }}>Resumo do dia.</p>
         </div>
 
-        <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Plus size={14} strokeWidth={2.5} /> Novo Agendamento
+        <button className="btn btn-primary" onClick={() => navigate('/vendas')} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Plus size={14} strokeWidth={2.5} /> Nova Venda
         </button>
       </motion.div>
 

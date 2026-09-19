@@ -322,11 +322,13 @@ export default function Condicionais() {
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 14px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px' }}>
                       <Search size={13} style={{ color: '#444', flexShrink: 0 }} />
                       <input
+                        className="input-bare"
                         style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', fontSize: '13px', color: '#FFFFFF', fontFamily: 'inherit' }}
                         placeholder="Nome do produto, ou ler código..."
                         value={buscaProduto}
                         onChange={e => setBuscaProduto(e.target.value)}
                         onKeyDown={handleBuscaKeyDown}
+                        autoComplete="off"
                       />
                     </div>
                     <button

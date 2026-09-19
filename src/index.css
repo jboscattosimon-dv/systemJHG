@@ -77,6 +77,14 @@ h1, h2, h3 {
   box-shadow: 0 0 0 5px rgba(255,255,255,0.06);
 }
 
+/* Campos de busca com autoFocus (Vendas, Condicional): o container já
+   avisa visualmente que é um campo de busca, então o anel de foco padrão
+   só pisca uma cor diferente assim que a tela abre — sem necessidade. */
+.input-bare:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 /* ── Select / Date inputs ────────────────────────────────── */
 
 select option { background: var(--surface); color: var(--text); }

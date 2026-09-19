@@ -187,17 +187,19 @@ export default function Vendas() {
             flex: 1,
             display: 'flex', alignItems: 'center', gap: '8px',
             padding: '9px 14px',
-            background: '#1A1A1A',
-            border: '1px solid #252525',
+            background: 'var(--surface-2)',
+            border: '1px solid var(--border)',
             borderRadius: '8px',
           }}>
             <Search size={13} style={{ color: '#444', flexShrink: 0 }} />
             <input
+              className="input-bare"
               style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: '13px', color: '#FFFFFF', fontFamily: 'inherit' }}
               placeholder="Buscar produto ou serviço, ou ler código..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               onKeyDown={handleSearchKeyDown}
+              autoComplete="off"
               autoFocus
             />
             {search && (
@@ -213,7 +215,7 @@ export default function Vendas() {
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: '38px', height: '38px', flexShrink: 0,
-              background: '#1A1A1A', border: '1px solid #252525', borderRadius: '8px',
+              background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px',
               color: '#A3A3A3', cursor: 'pointer',
             }}
           >
@@ -294,7 +296,7 @@ export default function Vendas() {
         <div style={{ padding: '18px 20px', borderBottom: '1px solid #222', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <ShoppingCart size={15} style={{ color: '#555' }} />
-            <span style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>Comanda</span>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>Vendas</span>
             {cart.length > 0 && (
               <span style={{
                 marginLeft: 'auto', fontSize: '11px', padding: '2px 8px',
@@ -501,7 +503,7 @@ export default function Vendas() {
             </div>
             <div>
               <p style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>Venda registrada!</p>
-              <p style={{ fontSize: '11px', color: '#555' }}>Comanda finalizada com sucesso.</p>
+              <p style={{ fontSize: '11px', color: '#555' }}>Venda finalizada com sucesso.</p>
             </div>
           </motion.div>
         )}

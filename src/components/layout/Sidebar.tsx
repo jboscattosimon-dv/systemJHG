@@ -190,7 +190,7 @@ export default function Sidebar({ hidden }: { hidden: boolean }) {
     <motion.aside
       className="app-sidebar"
       style={{
-        minHeight: '100vh',
+        height: '100vh',
         display: 'flex',
         flexDirection: 'column',
         background: '#111111',
