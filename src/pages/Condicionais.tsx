@@ -113,6 +113,11 @@ export default function Condicionais() {
   }
 
   const itensFechar = condFechar?.itens ?? []
+
+  function setDecisao(itemId: string, status: Decisao) {
+    setDecisoes(prev => ({ ...prev, [itemId]: status }))
+  }
+
   const todosDecididos = itensFechar.length > 0 && itensFechar.every(i => decisoes[i.id])
   const temVendido = itensFechar.some(i => decisoes[i.id] === 'vendido')
   const totalVendido = itensFechar.filter(i => decisoes[i.id] === 'vendido').reduce((s, i) => s + totalItem(i), 0)
