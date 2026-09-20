@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  ShoppingCart, Wallet, Percent, Users, Package, Scissors, Calendar, AlertTriangle, Printer, Tag, Check,
+  ShoppingCart, Wallet, Percent, Users, Package, Scissors, Calendar, AlertTriangle, Printer, Tag,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency, formatDate, formatDateTime } from '../lib/utils'
 import { type Periodo, rangeFor } from '../lib/periodo'
 import EtiquetaModal from '../components/EtiquetaModal'
+import SelecionarProdutosEtiquetaModal from '../components/SelecionarProdutosEtiquetaModal'
 
 const CATEGORIAS_PRODUTO = ['bebidas', 'pomadas', 'petiscos', 'outros']
 const STATUS_COMISSAO = ['pendente', 'aprovada', 'paga', 'cancelada']
@@ -90,7 +91,7 @@ export default function Relatorios() {
   const [filtroCategoria, setFiltroCategoria] = useState('')
   const [filtroStatusAgenda, setFiltroStatusAgenda] = useState('')
   const [buscaCliente, setBuscaCliente] = useState('')
-  const [selecionadosEtiqueta, setSelecionadosEtiqueta] = useState<Set<string>>(new Set())
+  const [showSelecaoEtiqueta, setShowSelecaoEtiqueta] = useState(false)
   const [produtosEtiqueta, setProdutosEtiqueta] = useState<any[] | null>(null)
 
   const [inicio, fim] = rangeFor(periodo, ref, custom)
@@ -151,18 +152,6 @@ export default function Relatorios() {
     (!filtroStatusComissao || c.status === filtroStatusComissao)
   )
   const produtosFiltrados = produtos.filter((p: any) => !filtroCategoria || p.categoria === filtroCategoria)
-
-  function toggleSelecionadoEtiqueta(id: string) {
-    setSelecionadosEtiqueta(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id); else next.add(id)
-      return next
-    })
-  }
-
-  function toggleSelecionarTodosEtiqueta() {
-    setSelecionadosEtiqueta(prev => prev.size === produtosFiltrados.length ? new Set() : new Set(produtosFiltrados.map((p: any) => p.id)))
-  }
   const agendamentosFiltrados = agendamentos.filter((a: any) =>
     (!filtroProfissionalId || a.profissional_id === filtroProfissionalId) &&
     (!filtroStatusAgenda || a.status === filtroStatusAgenda)
@@ -487,44 +476,10 @@ export default function Relatorios() {
                 <p style={{ fontSize: '12px', color: '#555', margin: '20px 0 8px' }}>Movimentações recentes</p>
                 <Tabela colunas={['Produto', 'Tipo', 'Qtd', 'Quando']} vazio="Nenhuma movimentação no período." linhas={movimentacoes.slice(0, 20).map((m: any) => [m.produto?.nome ?? '—', m.tipo, m.quantidade, formatDate(m.created_at)])} />
 
-                <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '20px 0 8px' }}>
-                  <p style={{ fontSize: '12px', color: '#555' }}>Imprimir etiquetas</p>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    {produtosFiltrados.length > 0 && (
-                      <button className="btn btn-secondary btn-sm" onClick={toggleSelecionarTodosEtiqueta} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Check size={12} /> {selecionadosEtiqueta.size === produtosFiltrados.length ? 'Desmarcar todos' : 'Selecionar todos'}
-                      </button>
-                    )}
-                    {selecionadosEtiqueta.size > 0 && (
-                      <button
-                        className="btn btn-primary btn-sm"
-                        onClick={() => setProdutosEtiqueta(produtos.filter((p: any) => selecionadosEtiqueta.has(p.id)))}
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                      >
-                        <Tag size={12} /> Imprimir ({selecionadosEtiqueta.size})
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="no-print card" style={{ padding: 0, overflow: 'hidden' }}>
-                  {produtosFiltrados.length === 0 ? (
-                    <div style={{ padding: '40px', textAlign: 'center', color: '#444', fontSize: '13px' }}>Nenhum produto cadastrado no período.</div>
-                  ) : produtosFiltrados.map((p: any, i: number) => (
-                    <label
-                      key={p.id}
-                      className="list-row"
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '12px',
-                        padding: '11px 24px',
-                        borderBottom: i < produtosFiltrados.length - 1 ? '1px solid #1A1A1A' : 'none',
-                        fontSize: '13px', color: '#A3A3A3', cursor: 'pointer',
-                      }}
-                    >
-                      <input type="checkbox" checked={selecionadosEtiqueta.has(p.id)} onChange={() => toggleSelecionadoEtiqueta(p.id)} />
-                      <span style={{ flex: 1, color: '#FFFFFF' }}>{p.nome}</span>
-                      <span>{p.estoque_atual} {p.unidade}</span>
-                    </label>
-                  ))}
+                <div className="no-print" style={{ marginTop: '20px' }}>
+                  <button className="btn btn-secondary" onClick={() => setShowSelecaoEtiqueta(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Tag size={13} /> Imprimir etiquetas
+                  </button>
                 </div>
               </>
             )}
@@ -557,10 +512,20 @@ export default function Relatorios() {
       )}
 
       <AnimatePresence>
+        {showSelecaoEtiqueta && (
+          <SelecionarProdutosEtiquetaModal
+            produtos={produtosFiltrados}
+            onClose={() => setShowSelecaoEtiqueta(false)}
+            onConfirmar={selecionados => { setShowSelecaoEtiqueta(false); setProdutosEtiqueta(selecionados) }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {produtosEtiqueta && (
           <EtiquetaModal
             produtos={produtosEtiqueta}
-            onClose={() => { setProdutosEtiqueta(null); setSelecionadosEtiqueta(new Set()) }}
+            onClose={() => setProdutosEtiqueta(null)}
             onSkuGerado={(id, sku) => {
               setProdutos((prev: any[]) => prev.map(x => x.id === id ? { ...x, sku } : x))
               setProdutosEtiqueta(prev => prev ? prev.map((x: any) => x.id === id ? { ...x, sku } : x) : prev)
