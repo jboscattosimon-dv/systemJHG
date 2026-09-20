@@ -82,6 +82,30 @@ function numero(valor: unknown, padrao = 0): number {
   return Number.isFinite(n) ? n : padrao
 }
 
+// Tira acento, deixa minúsculo e sem espaço nas pontas, pra "Preço de Venda à
+// Vista" e "preco de venda a vista" caírem na mesma chave.
+function normalizarCabecalho(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+}
+
+// Cada coluna aceita alguns apelidos, pra planilhas antigas ou digitadas de
+// cabeça (sem seguir o modelo à risca) continuarem funcionando.
+const ALIASES_COLUNA: Record<'nome' | 'tamanho' | 'estoque' | 'custo' | 'vendaVista' | 'vendaPrazo', string[]> = {
+  nome:       ['nome', 'nome do produto', 'produto'],
+  tamanho:    ['tamanho', 'tamanhos'],
+  estoque:    ['estoque', 'estoque total', 'estoque atual', 'quantidade'],
+  custo:      ['preco de custo', 'custo'],
+  vendaVista: ['preco de venda a vista', 'preco de venda', 'venda a vista', 'preco venda'],
+  vendaPrazo: ['preco de venda a prazo', 'venda a prazo', 'a prazo', 'preco a prazo'],
+}
+
+function valorDaColuna(linhaNormalizada: Record<string, unknown>, coluna: keyof typeof ALIASES_COLUNA): unknown {
+  for (const alias of ALIASES_COLUNA[coluna]) {
+    if (alias in linhaNormalizada) return linhaNormalizada[alias]
+  }
+  return ''
+}
+
 async function lerPlanilhaProdutos(arquivo: File): Promise<{ validas: LinhaImportada[]; erros: string[] }> {
   const buf = await arquivo.arrayBuffer()
   const wb = XLSX.read(buf, { type: 'array' })
@@ -91,24 +115,27 @@ async function lerPlanilhaProdutos(arquivo: File): Promise<{ validas: LinhaImpor
   const validas: LinhaImportada[] = []
   const erros: string[] = []
 
-  linhas.forEach((linha, i) => {
-    const nome = String(linha[COLUNAS_IMPORTACAO[0]] ?? '').trim()
-    const precoVenda = numero(linha[COLUNAS_IMPORTACAO[4]], NaN)
+  linhas.forEach((linhaBruta, i) => {
+    const linha: Record<string, unknown> = {}
+    Object.entries(linhaBruta).forEach(([chave, valor]) => { linha[normalizarCabecalho(chave)] = valor })
+
+    const nome = String(valorDaColuna(linha, 'nome') ?? '').trim()
+    const precoVenda = numero(valorDaColuna(linha, 'vendaVista'), NaN)
     if (!nome) { erros.push(`Linha ${i + 2}: sem nome do produto, ignorada.`); return }
     if (!Number.isFinite(precoVenda) || precoVenda <= 0) { erros.push(`Linha ${i + 2} (${nome}): preço de venda à vista inválido, ignorada.`); return }
 
-    const tamanhos = parseTamanhos(linha[COLUNAS_IMPORTACAO[1]])
+    const tamanhos = parseTamanhos(valorDaColuna(linha, 'tamanho'))
     const estoqueTotal = tamanhos.length > 0
       ? tamanhos.reduce((s, t) => s + t.quantidade, 0)
-      : numero(linha[COLUNAS_IMPORTACAO[2]], 0)
-    const precoPrazoBruto = linha[COLUNAS_IMPORTACAO[5]]
+      : numero(valorDaColuna(linha, 'estoque'), 0)
+    const precoPrazoBruto = valorDaColuna(linha, 'vendaPrazo')
     const precoVendaPrazo = precoPrazoBruto !== '' && precoPrazoBruto != null ? numero(precoPrazoBruto, NaN) : null
 
     validas.push({
       nome,
       tamanhos,
       estoque_total: estoqueTotal,
-      preco_custo: numero(linha[COLUNAS_IMPORTACAO[3]], 0),
+      preco_custo: numero(valorDaColuna(linha, 'custo'), 0),
       preco_venda: precoVenda,
       preco_venda_prazo: precoVendaPrazo != null && Number.isFinite(precoVendaPrazo) ? precoVendaPrazo : null,
     })
