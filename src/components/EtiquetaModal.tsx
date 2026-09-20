@@ -98,7 +98,10 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
       const codigo = codigos[c.produto.id]
       const svg = refs.current[c.chave]
       if (codigo && svg) {
-        JsBarcode(svg, codigo, { format: 'CODE128', width: 1, height: 18, fontSize: 8, margin: 2, displayValue: true })
+        // height mais alto (era 18) + menos "peso" no texto/margem embaixo
+        // do código = mais barra de verdade depois de escalar, mais fácil
+        // de focar e ler com câmera de celular.
+        JsBarcode(svg, codigo, { format: 'CODE128', width: 1, height: 30, fontSize: 7, margin: 1, displayValue: true })
 
         // JsBarcode desenha em pixels fixos (a largura cresce com o tamanho
         // do código) — sem isso, um SKU mais longo sai mais largo que a
@@ -110,7 +113,7 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
           svg.setAttribute('width', '100%')
           svg.setAttribute('height', 'auto')
           svg.style.maxWidth = '100%'
-          svg.style.maxHeight = `${layout.altura * 0.55}mm`
+          svg.style.maxHeight = `${layout.altura * 0.68}mm`
         }
       }
     })
@@ -241,13 +244,13 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
                     style={{
                       width: `${layout.largura}mm`, height: `${layout.altura}mm`,
                       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                      overflow: 'hidden', padding: '0.5mm', boxSizing: 'border-box', textAlign: 'center',
+                      overflow: 'hidden', padding: '0.3mm', boxSizing: 'border-box', textAlign: 'center',
                     }}
                   >
-                    <p style={{ fontSize: '6px', fontWeight: 600, color: '#111', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>
+                    <p style={{ fontSize: '5.5px', fontWeight: 600, color: '#111', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>
                       {c.produto.nome}{c.tamanho ? ` — ${c.tamanho}` : ''}
                     </p>
-                    <p style={{ fontSize: '7px', fontWeight: 700, color: '#111', lineHeight: 1.2 }}>
+                    <p style={{ fontSize: '6.5px', fontWeight: 700, color: '#111', lineHeight: 1.1 }}>
                       {formatCurrency(c.produto.preco_venda)}
                     </p>
                     <svg ref={el => { refs.current[c.chave] = el }} style={{ display: 'block', width: '100%' }} />
