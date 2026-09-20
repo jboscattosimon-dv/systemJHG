@@ -164,6 +164,7 @@ export default function Produtos() {
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
   const [importando, setImportando] = useState(false)
   const [resultadoImportacao, setResultadoImportacao] = useState<{ ok: number; erros: string[] } | null>(null)
+  const [produtoDetalhe, setProdutoDetalhe] = useState<Produto | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const temTamanhosForm = prodTamanhos.some(t => t.tamanho.trim())
@@ -319,6 +320,7 @@ export default function Produtos() {
   }
 
   const modalProdRef = useModalKeyboard(showProdModal, fecharModalProd, handleSaveProd)
+  useModalKeyboard(!!produtoDetalhe, () => setProdutoDetalhe(null))
 
   return (
     <div className="page">
@@ -328,7 +330,7 @@ export default function Produtos() {
           <h1 style={{ fontSize: '24px', color: '#FFFFFF' }}>Produtos</h1>
           <p style={{ fontSize: '13px', color: '#555', marginTop: '3px' }}>Estoque e catálogo da loja</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {produtosFiltrados.length > 0 && (
             <button className="btn btn-secondary btn-sm" onClick={toggleSelecionarTodos} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Check size={12} /> {selecionados.size === produtosFiltrados.length ? 'Desmarcar todos' : 'Selecionar todos'}
@@ -426,10 +428,12 @@ export default function Produtos() {
                 padding: '14px 24px',
                 borderBottom: i < produtosFiltrados.length - 1 ? '1px solid #1F1F1F' : 'none',
                 alignItems: 'center',
+                cursor: 'pointer',
               }}
               whileHover={{ backgroundColor: 'rgba(255,255,255,0.02)' }}
+              onClick={() => setProdutoDetalhe(p)}
             >
-              <input type="checkbox" checked={selecionados.has(p.id)} onChange={() => toggleSelecionado(p.id)} />
+              <input type="checkbox" checked={selecionados.has(p.id)} onChange={() => toggleSelecionado(p.id)} onClick={e => e.stopPropagation()} />
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                 <Package size={13} style={{ color: '#444', flexShrink: 0, marginTop: '2px' }} />
                 <div style={{ minWidth: 0 }}>
@@ -460,7 +464,7 @@ export default function Produtos() {
                 {p.estoque_atual} {p.unidade}
               </span>
               <button
-                onClick={() => toggleAtivoProd(p.id, p.ativo)}
+                onClick={e => { e.stopPropagation(); toggleAtivoProd(p.id, p.ativo) }}
                 style={{
                   fontSize: '10px', padding: '3px 9px', borderRadius: '99px',
                   border: p.ativo ? '1px solid rgba(255,255,255,0.2)' : '1px dashed #333',
@@ -472,10 +476,10 @@ export default function Produtos() {
                 {p.ativo ? 'Ativo' : 'Inativo'}
               </button>
               <div style={{ display: 'flex', gap: '4px' }}>
-                <button className="btn btn-icon" title="Editar" onClick={() => abrirEdicaoProd(p)}>
+                <button className="btn btn-icon" title="Editar" onClick={e => { e.stopPropagation(); abrirEdicaoProd(p) }}>
                   <Pencil size={12} />
                 </button>
-                <button className="btn btn-icon" title="Gerar/imprimir etiqueta" onClick={() => setProdutosEtiqueta([p])}>
+                <button className="btn btn-icon" title="Gerar/imprimir etiqueta" onClick={e => { e.stopPropagation(); setProdutosEtiqueta([p]) }}>
                   <Tag size={12} />
                 </button>
               </div>
@@ -495,9 +499,11 @@ export default function Produtos() {
                 key={p.id}
                 className="card entity-card"
                 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+                style={{ cursor: 'pointer' }}
+                onClick={() => setProdutoDetalhe(p)}
               >
                 <div className="entity-header" style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                  <input type="checkbox" checked={selecionados.has(p.id)} onChange={() => toggleSelecionado(p.id)} style={{ marginTop: '4px', flexShrink: 0 }} />
+                  <input type="checkbox" checked={selecionados.has(p.id)} onChange={() => toggleSelecionado(p.id)} onClick={e => e.stopPropagation()} style={{ marginTop: '4px', flexShrink: 0 }} />
                   <div className="entity-avatar" style={{
                     width: '40px', height: '40px', borderRadius: '10px',
                     background: '#262626', border: '1px solid #333',
@@ -515,7 +521,7 @@ export default function Produtos() {
                     {detalhes && <p className="entity-subtle" style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>{detalhes}</p>}
                   </div>
                   <button
-                    onClick={() => toggleAtivoProd(p.id, p.ativo)}
+                    onClick={e => { e.stopPropagation(); toggleAtivoProd(p.id, p.ativo) }}
                     style={{
                       fontSize: '10px', padding: '3px 9px', borderRadius: '99px', flexShrink: 0,
                       border: p.ativo ? '1px solid rgba(255,255,255,0.2)' : '1px dashed #333',
@@ -563,10 +569,10 @@ export default function Produtos() {
                 )}
 
                 <div className="entity-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-                  <button className="btn btn-icon" title="Editar" onClick={() => abrirEdicaoProd(p)}>
+                  <button className="btn btn-icon" title="Editar" onClick={e => { e.stopPropagation(); abrirEdicaoProd(p) }}>
                     <Pencil size={12} />
                   </button>
-                  <button className="btn btn-icon" title="Gerar/imprimir etiqueta" onClick={() => setProdutosEtiqueta([p])}>
+                  <button className="btn btn-icon" title="Gerar/imprimir etiqueta" onClick={e => { e.stopPropagation(); setProdutosEtiqueta([p]) }}>
                     <Tag size={12} />
                   </button>
                 </div>
@@ -713,6 +719,110 @@ export default function Produtos() {
               setProdutosEtiqueta(prev => prev ? prev.map(x => x.id === id ? { ...x, sku } : x) : prev)
             }}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Modal: Detalhe do Produto */}
+      <AnimatePresence>
+        {produtoDetalhe && (
+          <motion.div
+            style={{ position: 'fixed', inset: 0, zIndex: 55, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={e => e.target === e.currentTarget && setProdutoDetalhe(null)}
+          >
+            <motion.div
+              className="card"
+              style={{ width: '100%', maxWidth: '440px', padding: '28px', maxHeight: '88vh', overflowY: 'auto' }}
+              initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 16 }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                  <div style={{
+                    width: '48px', height: '48px', borderRadius: '12px', flexShrink: 0,
+                    background: '#262626', border: '1px solid #333',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Package size={20} style={{ color: '#A3A3A3' }} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <h2 style={{ fontSize: '17px', color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{produtoDetalhe.nome}</h2>
+                    {produtoDetalhe.sku && <p style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>#{produtoDetalhe.sku}</p>}
+                  </div>
+                </div>
+                <button className="btn btn-icon" onClick={() => setProdutoDetalhe(null)} style={{ flexShrink: 0 }}><X size={14} /></button>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '14px 0 20px' }}>
+                <span style={{
+                  fontSize: '10px', padding: '3px 9px', borderRadius: '99px',
+                  border: produtoDetalhe.ativo ? '1px solid rgba(255,255,255,0.2)' : '1px dashed #333',
+                  color: produtoDetalhe.ativo ? '#A3A3A3' : '#444',
+                }}>
+                  {produtoDetalhe.ativo ? 'Ativo' : 'Inativo'}
+                </span>
+                <span style={{ fontSize: '11px', color: '#555', textTransform: 'capitalize' }}>{CAT_LABEL[produtoDetalhe.categoria]}</span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '20px' }}>
+                <div>
+                  <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>Estoque total</p>
+                  <p style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>{produtoDetalhe.estoque_atual} {produtoDetalhe.unidade}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>Margem</p>
+                  <p style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>
+                    {produtoDetalhe.preco_custo > 0 ? `+${(((produtoDetalhe.preco_venda - produtoDetalhe.preco_custo) / produtoDetalhe.preco_custo) * 100).toFixed(0)}%` : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>Preço de custo</p>
+                  <p style={{ fontSize: '14px', color: '#A3A3A3' }}>{formatCurrency(produtoDetalhe.preco_custo)}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>Venda à vista</p>
+                  <p style={{ fontSize: '14px', color: '#A3A3A3' }}>{formatCurrency(produtoDetalhe.preco_venda)}</p>
+                </div>
+                {produtoDetalhe.preco_venda_prazo != null && (
+                  <div>
+                    <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>Venda a prazo</p>
+                    <p style={{ fontSize: '14px', color: '#A3A3A3' }}>{formatCurrency(produtoDetalhe.preco_venda_prazo)}</p>
+                  </div>
+                )}
+                {produtoDetalhe.comissao_percentual != null && (
+                  <div>
+                    <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>Comissão</p>
+                    <p style={{ fontSize: '14px', color: '#A3A3A3' }}>{produtoDetalhe.comissao_percentual}%</p>
+                  </div>
+                )}
+              </div>
+
+              {produtoDetalhe.tamanhos && produtoDetalhe.tamanhos.length > 0 && (
+                <div style={{ marginBottom: '20px' }}>
+                  <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>Estoque por tamanho</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {produtoDetalhe.tamanhos.map(t => (
+                      <span key={t.tamanho} style={{
+                        fontSize: '12px', padding: '4px 10px', borderRadius: '99px',
+                        border: '1px solid #2A2A2A', color: t.quantidade > 0 ? '#A3A3A3' : '#444',
+                        background: t.quantidade > 0 ? 'rgba(255,255,255,0.04)' : 'transparent',
+                      }}>
+                        {t.tamanho}: {t.quantidade}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => { setProdutosEtiqueta([produtoDetalhe]); setProdutoDetalhe(null) }}>
+                  <Tag size={13} /> Etiqueta
+                </button>
+                <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => { const p = produtoDetalhe; setProdutoDetalhe(null); abrirEdicaoProd(p) }}>
+                  <Pencil size={13} /> Editar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
