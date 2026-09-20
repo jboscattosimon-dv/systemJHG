@@ -16,9 +16,13 @@ const LAYOUT_PADRAO = {
   largura: 31,
   altura: 17,
   margemTop: 12.5,
-  margemLeft: 12,
+  margemLeft: 10.5,
   gapH: 0,
   gapV: 0,
+  // Compensação fina por coluna (mm): soma progressiva por índice de coluna,
+  // pra corrigir desvio acumulado (ex: folha com pequena folga entre etiquetas
+  // que o grid não captura, ou arredondamento de impressão). 0 = desligado.
+  compensacaoColuna: 0,
 }
 
 interface Copia {
@@ -213,9 +217,10 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
             {campoLayout('Margem esquerda (mm)', 'margemLeft', 0.5)}
             {campoLayout('Espaço horizontal (mm)', 'gapH', 0.5)}
             {campoLayout('Espaço vertical (mm)', 'gapV', 0.5)}
+            {campoLayout('Compensação por coluna (mm)', 'compensacaoColuna', 0.1)}
           </div>
           <p style={{ fontSize: '11px', color: '#444', marginTop: '8px' }}>
-            {porPagina} etiquetas por folha · {paginas.length} folha{paginas.length === 1 ? '' : 's'} · Se a primeira impressão sair desalinhada, ajuste as margens aqui e imprima de novo.
+            {porPagina} etiquetas por folha · {paginas.length} folha{paginas.length === 1 ? '' : 's'} · Se a primeira impressão sair desalinhada, ajuste as margens aqui e imprima de novo. Se só as últimas colunas ficarem desalinhadas (código de barras cortando pra esquerda), aumente aos poucos a "Compensação por coluna" — ela empurra cada coluna um pouco mais pra direita conforme se afasta da primeira.
           </p>
         </details>
 
@@ -226,36 +231,40 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
                 key={pIdx}
                 className="folha-etiquetas"
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: `repeat(${layout.colunas}, ${layout.largura}mm)`,
-                  gridAutoRows: `${layout.altura}mm`,
-                  columnGap: `${layout.gapH}mm`,
-                  rowGap: `${layout.gapV}mm`,
-                  paddingTop: `${layout.margemTop}mm`,
-                  paddingLeft: `${layout.margemLeft}mm`,
+                  position: 'relative',
+                  width: '210mm',
+                  height: `${layout.margemTop + layout.linhas * (layout.altura + layout.gapV)}mm`,
                   background: '#fff',
                   marginBottom: pIdx < paginas.length - 1 ? '20px' : 0,
                 }}
               >
-                {pagina.map(c => (
-                  <div
-                    key={c.chave}
-                    className="etiqueta-fisica"
-                    style={{
-                      width: `${layout.largura}mm`, height: `${layout.altura}mm`,
-                      display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center',
-                      overflow: 'hidden', padding: '0.3mm 0.3mm 0.3mm 0.8mm', boxSizing: 'border-box', textAlign: 'left',
-                    }}
-                  >
-                    <p style={{ fontSize: '7px', fontWeight: 600, color: '#111', lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>
-                      {c.produto.nome}{c.tamanho ? ` — ${c.tamanho}` : ''}
-                    </p>
-                    <p style={{ fontSize: '6.5px', fontWeight: 700, color: '#111', lineHeight: 1.1 }}>
-                      {formatCurrency(c.produto.preco_venda)}
-                    </p>
-                    <svg ref={el => { refs.current[c.chave] = el }} style={{ display: 'block', width: '100%' }} />
-                  </div>
-                ))}
+                {pagina.map((c, idx) => {
+                  const col = idx % layout.colunas
+                  const row = Math.floor(idx / layout.colunas)
+                  const left = layout.margemLeft + col * (layout.largura + layout.gapH) + col * layout.compensacaoColuna
+                  const top = layout.margemTop + row * (layout.altura + layout.gapV)
+                  return (
+                    <div
+                      key={c.chave}
+                      className="etiqueta-fisica"
+                      style={{
+                        position: 'absolute',
+                        left: `${left}mm`, top: `${top}mm`,
+                        width: `${layout.largura}mm`, height: `${layout.altura}mm`,
+                        display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center',
+                        overflow: 'hidden', padding: '0.3mm 0.3mm 0.3mm 0.8mm', boxSizing: 'border-box', textAlign: 'left',
+                      }}
+                    >
+                      <p style={{ fontSize: '7px', fontWeight: 600, color: '#111', lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>
+                        {c.produto.nome}{c.tamanho ? ` — ${c.tamanho}` : ''}
+                      </p>
+                      <p style={{ fontSize: '6.5px', fontWeight: 700, color: '#111', lineHeight: 1.1 }}>
+                        {formatCurrency(c.produto.preco_venda)}
+                      </p>
+                      <svg ref={el => { refs.current[c.chave] = el }} style={{ display: 'block', width: '100%' }} />
+                    </div>
+                  )
+                })}
               </div>
             ))}
           </div>
