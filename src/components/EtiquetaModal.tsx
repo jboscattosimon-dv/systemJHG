@@ -15,7 +15,7 @@ const LAYOUT_PADRAO = {
   linhas: 16,
   largura: 31,
   altura: 17,
-  margemTop: 12.6,
+  margemTop: 12.7,
   margemLeft: 10.5,
   gapH: 0,
   gapV: 0,
