@@ -343,6 +343,13 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
   display: none;
 }
 
+/* 100vh no mobile conta a área atrás da barra do navegador (Safari),
+   que nem sempre está visível — dvh acompanha a altura real da tela. */
+.app-sidebar {
+  height: 100vh;
+  height: 100dvh;
+}
+
 @media (max-width: 768px) {
   .page { padding: 16px; }
 

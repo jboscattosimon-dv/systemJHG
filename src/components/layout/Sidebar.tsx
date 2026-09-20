@@ -189,7 +189,6 @@ export default function Sidebar({ hidden }: { hidden: boolean }) {
     <motion.aside
       className="app-sidebar"
       style={{
-        height: '100vh',
         display: 'flex',
         flexDirection: 'column',
         background: '#111111',
@@ -263,7 +262,7 @@ export default function Sidebar({ hidden }: { hidden: boolean }) {
       </nav>
 
       {/* User */}
-      <div style={{ padding: '12px 8px 16px', borderTop: '1px solid #1F1F1F', flexShrink: 0 }}>
+      <div style={{ padding: '12px 8px', paddingBottom: 'max(16px, env(safe-area-inset-bottom))', borderTop: '1px solid #1F1F1F', flexShrink: 0 }}>
         <div style={{
           display: 'flex',
           alignItems: 'center',
