@@ -713,6 +713,7 @@ export default function Produtos() {
         {produtosEtiqueta && (
           <EtiquetaModal
             produtos={produtosEtiqueta}
+            permitirAjusteQuantidade={false}
             onClose={() => { setProdutosEtiqueta(null); setSelecionados(new Set()) }}
             onSkuGerado={(id, sku) => {
               setProdutos(prev => prev.map(x => x.id === id ? { ...x, sku } : x))

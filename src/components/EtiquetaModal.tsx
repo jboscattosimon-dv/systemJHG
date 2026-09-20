@@ -47,10 +47,14 @@ function quantidadesPadrao(produtos: Produto[]): Record<string, number> {
   return padrao
 }
 
-export default function EtiquetaModal({ produtos, onClose, onSkuGerado }: {
+export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitirAjusteQuantidade = true }: {
   produtos: Produto[]
   onClose: () => void
   onSkuGerado: (id: string, sku: string) => void
+  // Tela de Produtos só quer imprimir com a quantidade em estoque, sem
+  // mostrar/editar números — esse ajuste fica só na impressão pelos
+  // Relatórios.
+  permitirAjusteQuantidade?: boolean
 }) {
   const [codigos, setCodigos] = useState<Record<string, string>>({})
   const [quantidades, setQuantidades] = useState<Record<string, number>>(() => quantidadesPadrao(produtos))
@@ -145,45 +149,53 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado }: {
           </h2>
           <button className="btn btn-icon" onClick={onClose}><X size={14} /></button>
         </div>
-        <p style={{ fontSize: '12px', color: '#555', marginBottom: '16px' }}>
-          Quantidade de cópias já vem preenchida com o estoque (por tamanho, quando tiver) — ajuste se quiser imprimir menos.
-        </p>
+        {permitirAjusteQuantidade ? (
+          <>
+            <p style={{ fontSize: '12px', color: '#555', marginBottom: '16px' }}>
+              Quantidade de cópias já vem preenchida com o estoque (por tamanho, quando tiver) — ajuste se quiser imprimir menos.
+            </p>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
-          {produtos.map(p => {
-            const temTamanhos = p.tamanhos && p.tamanhos.length > 0
-            return (
-              <div key={p.id} style={{ padding: '8px 0', borderBottom: '1px solid #1F1F1F' }}>
-                <span style={{ fontSize: '13px', color: '#FFFFFF', display: 'block', marginBottom: temTamanhos ? '8px' : 0 }}>{p.nome}</span>
-                {!temTamanhos ? (
-                  <label style={{ fontSize: '11px', color: '#666', display: 'flex', alignItems: 'center', gap: '6px', width: 'fit-content' }}>
-                    Cópias
-                    <input
-                      className="input" type="number" min={0} max={999}
-                      style={{ width: '64px' }}
-                      value={quantidades[chaveQtd(p.id)] ?? 0}
-                      onChange={e => setQtd(p.id, undefined, Number(e.target.value))}
-                    />
-                  </label>
-                ) : (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                    {p.tamanhos!.map(t => (
-                      <label key={t.tamanho} style={{ fontSize: '11px', color: '#666', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        {t.tamanho}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+              {produtos.map(p => {
+                const temTamanhos = p.tamanhos && p.tamanhos.length > 0
+                return (
+                  <div key={p.id} style={{ padding: '8px 0', borderBottom: '1px solid #1F1F1F' }}>
+                    <span style={{ fontSize: '13px', color: '#FFFFFF', display: 'block', marginBottom: temTamanhos ? '8px' : 0 }}>{p.nome}</span>
+                    {!temTamanhos ? (
+                      <label style={{ fontSize: '11px', color: '#666', display: 'flex', alignItems: 'center', gap: '6px', width: 'fit-content' }}>
+                        Cópias
                         <input
                           className="input" type="number" min={0} max={999}
-                          style={{ width: '56px' }}
-                          value={quantidades[chaveQtd(p.id, t.tamanho)] ?? 0}
-                          onChange={e => setQtd(p.id, t.tamanho, Number(e.target.value))}
+                          style={{ width: '64px' }}
+                          value={quantidades[chaveQtd(p.id)] ?? 0}
+                          onChange={e => setQtd(p.id, undefined, Number(e.target.value))}
                         />
                       </label>
-                    ))}
+                    ) : (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                        {p.tamanhos!.map(t => (
+                          <label key={t.tamanho} style={{ fontSize: '11px', color: '#666', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {t.tamanho}
+                            <input
+                              className="input" type="number" min={0} max={999}
+                              style={{ width: '56px' }}
+                              value={quantidades[chaveQtd(p.id, t.tamanho)] ?? 0}
+                              onChange={e => setQtd(p.id, t.tamanho, Number(e.target.value))}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+                )
+              })}
+            </div>
+          </>
+        ) : (
+          <p style={{ fontSize: '12px', color: '#555', marginBottom: '16px' }}>
+            Imprimindo {totalEtiquetas} etiqueta{totalEtiquetas === 1 ? '' : 's'}, uma por unidade em estoque.
+          </p>
+        )}
 
         <details style={{ marginBottom: '16px' }}>
           <summary style={{ fontSize: '12px', color: '#666', cursor: 'pointer', marginBottom: '10px' }}>
