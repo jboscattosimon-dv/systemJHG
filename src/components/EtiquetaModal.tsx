@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import JsBarcode from 'jsbarcode'
 import { X, Printer } from 'lucide-react'
@@ -30,6 +31,12 @@ const COMPENSACAO_COLUNA_PADRAO = [0, 1.0, 2.0, 3.7, 4.3, 6.0]
 // horizontal que só aparece conforme desce na folha (ex: leve torção da
 // folha ao entrar na impressora). 0 = desligado.
 const COMPENSACAO_LINHA_PADRAO = 0.15
+
+// Compensação vertical por coluna (mm) — corrige a folha entrando torta
+// no sentido horizontal: coluna 6 sai certa, coluna 1 sai mais alta que
+// deveria. Empurra pra baixo, mais forte nas colunas da esquerda. Chute
+// inicial linear — ajuste pelos campos da tela depois de um teste real.
+const COMPENSACAO_COLUNA_VERTICAL_PADRAO = [2.5, 2.0, 1.5, 1.0, 0.5, 0]
 
 interface Copia {
   chave: string
@@ -71,10 +78,20 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
   const [layout, setLayout] = useState(LAYOUT_PADRAO)
   const [compensacaoColuna, setCompensacaoColuna] = useState<number[]>(COMPENSACAO_COLUNA_PADRAO)
   const [compensacaoLinha, setCompensacaoLinha] = useState(COMPENSACAO_LINHA_PADRAO)
+  const [compensacaoColunaVertical, setCompensacaoColunaVertical] = useState<number[]>(COMPENSACAO_COLUNA_VERTICAL_PADRAO)
   const refs = useRef<Record<string, SVGSVGElement | null>>({})
 
   function setCompensacao(col: number, valor: number) {
     setCompensacaoColuna(prev => {
+      const next = [...prev]
+      while (next.length <= col) next.push(0)
+      next[col] = valor
+      return next
+    })
+  }
+
+  function setCompensacaoVertical(col: number, valor: number) {
+    setCompensacaoColunaVertical(prev => {
       const next = [...prev]
       while (next.length <= col) next.push(0)
       next[col] = valor
@@ -122,7 +139,7 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
         // height mais alto (era 18, depois 30) + menos "peso" no texto/margem
         // embaixo do código = mais barra de verdade depois de escalar, mais
         // fácil de focar e ler com câmera de celular.
-        JsBarcode(svg, codigo, { format: 'CODE128', width: 1, height: 55, fontSize: 7, margin: 1, displayValue: true })
+        JsBarcode(svg, codigo, { format: 'CODE128', width: 1, height: 32, fontSize: 7, margin: 1, displayValue: true })
 
         // JsBarcode desenha em pixels fixos (a largura cresce com o tamanho
         // do código) — sem isso, um SKU mais longo sai mais largo que a
@@ -134,7 +151,7 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
           svg.setAttribute('width', '100%')
           svg.setAttribute('height', 'auto')
           svg.style.maxWidth = '100%'
-          svg.style.maxHeight = `${layout.altura * 0.74}mm`
+          svg.style.maxHeight = `${layout.altura * 0.68}mm`
         }
       }
     })
@@ -158,7 +175,11 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
     )
   }
 
-  return (
+  // Renderiza direto no body: fora da árvore do AppLayout, que tem
+  // height:100vh + overflow:hidden e cortava a impressão em 1 página só
+  // (o modal com transform do framer-motion vira containing block do
+  // #area-impressao, então ele ficava preso dentro daquele container).
+  return createPortal((
     <motion.div
       style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -265,6 +286,23 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
             />
           </div>
 
+          <p style={{ fontSize: '11px', color: '#666', marginTop: '14px', marginBottom: '8px' }}>
+            Compensação vertical por coluna (mm) — empurra só aquela coluna pra baixo, sem afetar as outras:
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px' }}>
+            {Array.from({ length: layout.colunas }, (_, col) => (
+              <div key={col} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', color: '#666' }}>Col. {col + 1}</label>
+                <input
+                  className="input" type="number" step={0.05}
+                  style={{ fontSize: '12px', padding: '6px 8px' }}
+                  value={compensacaoColunaVertical[col] ?? 0}
+                  onChange={e => setCompensacaoVertical(col, Number(e.target.value))}
+                />
+              </div>
+            ))}
+          </div>
+
           <p style={{ fontSize: '11px', color: '#444', marginTop: '10px' }}>
             {porPagina} etiquetas por folha · {paginas.length} folha{paginas.length === 1 ? '' : 's'} · Se a impressão sair desalinhada, ajuste as margens e as compensações acima e imprima de novo.
           </p>
@@ -288,7 +326,7 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
                   const col = idx % layout.colunas
                   const row = Math.floor(idx / layout.colunas)
                   const left = layout.margemLeft + col * (layout.largura + layout.gapH) + (compensacaoColuna[col] ?? 0) + row * compensacaoLinha
-                  const top = layout.margemTop + row * (layout.altura + layout.gapV)
+                  const top = layout.margemTop + row * (layout.altura + layout.gapV) + (compensacaoColunaVertical[col] ?? 0)
                   return (
                     <div
                       key={c.chave}
@@ -321,7 +359,7 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
         </button>
       </motion.div>
     </motion.div>
-  )
+  ), document.body)
 }
 
 function EtiquetaEstilos() {
