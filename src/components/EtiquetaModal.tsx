@@ -26,6 +26,11 @@ const LAYOUT_PADRAO = {
 // então cada coluna tem seu próprio ajuste em vez de uma fórmula única.
 const COMPENSACAO_COLUNA_PADRAO = [0, 1.0, 2.0, 3.7, 4.3, 6.0]
 
+// Compensação por linha (mm), somada * índice da linha — corrige um desvio
+// horizontal que só aparece conforme desce na folha (ex: leve torção da
+// folha ao entrar na impressora). 0 = desligado.
+const COMPENSACAO_LINHA_PADRAO = 0.15
+
 interface Copia {
   chave: string
   produto: Produto
@@ -65,6 +70,7 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
   const [quantidades, setQuantidades] = useState<Record<string, number>>(() => quantidadesPadrao(produtos))
   const [layout, setLayout] = useState(LAYOUT_PADRAO)
   const [compensacaoColuna, setCompensacaoColuna] = useState<number[]>(COMPENSACAO_COLUNA_PADRAO)
+  const [compensacaoLinha, setCompensacaoLinha] = useState(COMPENSACAO_LINHA_PADRAO)
   const refs = useRef<Record<string, SVGSVGElement | null>>({})
 
   function setCompensacao(col: number, valor: number) {
@@ -247,8 +253,20 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
             ))}
           </div>
 
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '14px' }}>
+            <label style={{ fontSize: '11px', color: '#666', flex: 1 }}>
+              Compensação por linha (mm) — empurra as linhas de baixo mais pra direita conforme descem na folha
+            </label>
+            <input
+              className="input" type="number" step={0.05}
+              style={{ fontSize: '12px', padding: '6px 8px', width: '80px' }}
+              value={compensacaoLinha}
+              onChange={e => setCompensacaoLinha(Number(e.target.value))}
+            />
+          </div>
+
           <p style={{ fontSize: '11px', color: '#444', marginTop: '10px' }}>
-            {porPagina} etiquetas por folha · {paginas.length} folha{paginas.length === 1 ? '' : 's'} · Se a impressão sair desalinhada, ajuste as margens e a compensação por coluna acima e imprima de novo.
+            {porPagina} etiquetas por folha · {paginas.length} folha{paginas.length === 1 ? '' : 's'} · Se a impressão sair desalinhada, ajuste as margens e as compensações acima e imprima de novo.
           </p>
         </details>
 
@@ -269,7 +287,7 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
                 {pagina.map((c, idx) => {
                   const col = idx % layout.colunas
                   const row = Math.floor(idx / layout.colunas)
-                  const left = layout.margemLeft + col * (layout.largura + layout.gapH) + (compensacaoColuna[col] ?? 0)
+                  const left = layout.margemLeft + col * (layout.largura + layout.gapH) + (compensacaoColuna[col] ?? 0) + row * compensacaoLinha
                   const top = layout.margemTop + row * (layout.altura + layout.gapV)
                   return (
                     <div
