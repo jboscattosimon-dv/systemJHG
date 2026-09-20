@@ -68,7 +68,7 @@ export interface Produto {
   preco_venda: number
   preco_venda_prazo?: number
   estoque_atual: number
-  estoque_minimo: number
+  estoque_minimo?: number
   estoque_maximo?: number
   sku?: string
   unidade: string

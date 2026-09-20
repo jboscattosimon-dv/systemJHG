@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type ChangeEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, X, AlertTriangle, Package, Check, Tag, Pencil, Download, Upload, Trash2, FileSpreadsheet } from 'lucide-react'
+import { Plus, X, Package, Check, Tag, Pencil, Download, Upload, Trash2, FileSpreadsheet } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { formatCurrency } from '../lib/utils'
@@ -150,7 +150,7 @@ export default function Produtos() {
   const [editProdId, setEditProdId] = useState<string | null>(null)
   const [prodForm, setProdForm] = useState({
     nome: '', categoria: 'bebidas' as ProdutoCategoria, sku: '', unidade: 'un',
-    preco_custo: '', preco_venda: '', preco_venda_prazo: '', estoque_atual: '', estoque_minimo: '5', estoque_maximo: '',
+    preco_custo: '', preco_venda: '', preco_venda_prazo: '', estoque_atual: '', estoque_minimo: '', estoque_maximo: '',
     comissao_percentual: '',
   })
   const [prodTamanhos, setProdTamanhos] = useState<{ tamanho: string; quantidade: string }[]>([])
@@ -164,7 +164,6 @@ export default function Produtos() {
   const [resultadoImportacao, setResultadoImportacao] = useState<{ ok: number; erros: string[] } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const alertas = produtos.filter(p => p.estoque_atual <= p.estoque_minimo)
   const temTamanhosForm = prodTamanhos.some(t => t.tamanho.trim())
   const totalTamanhosForm = prodTamanhos.filter(t => t.tamanho.trim()).reduce((s, t) => s + (Number(t.quantidade) || 0), 0)
 
@@ -256,7 +255,7 @@ export default function Produtos() {
       preco_custo: Number(prodForm.preco_custo) || 0,
       preco_venda: Number(prodForm.preco_venda),
       preco_venda_prazo: prodForm.preco_venda_prazo ? Number(prodForm.preco_venda_prazo) : null,
-      estoque_minimo: Number(prodForm.estoque_minimo) || 5,
+      estoque_minimo: prodForm.estoque_minimo ? Number(prodForm.estoque_minimo) : null,
       estoque_maximo: prodForm.estoque_maximo ? Number(prodForm.estoque_maximo) : null,
       comissao_percentual: prodForm.comissao_percentual ? Number(prodForm.comissao_percentual) : null,
     }
@@ -280,7 +279,7 @@ export default function Produtos() {
 
   function abrirNovoProd() {
     setEditProdId(null)
-    setProdForm({ nome: '', categoria: 'bebidas', sku: '', unidade: 'un', preco_custo: '', preco_venda: '', preco_venda_prazo: '', estoque_atual: '', estoque_minimo: '5', estoque_maximo: '', comissao_percentual: '' })
+    setProdForm({ nome: '', categoria: 'bebidas', sku: '', unidade: 'un', preco_custo: '', preco_venda: '', preco_venda_prazo: '', estoque_atual: '', estoque_minimo: '', estoque_maximo: '', comissao_percentual: '' })
     setProdTamanhos([])
     setError('')
     setShowProdModal(true)
@@ -292,7 +291,7 @@ export default function Produtos() {
       nome: p.nome, categoria: p.categoria, sku: p.sku ?? '', unidade: p.unidade,
       preco_custo: String(p.preco_custo), preco_venda: String(p.preco_venda),
       preco_venda_prazo: p.preco_venda_prazo != null ? String(p.preco_venda_prazo) : '',
-      estoque_atual: String(p.estoque_atual), estoque_minimo: String(p.estoque_minimo),
+      estoque_atual: String(p.estoque_atual), estoque_minimo: p.estoque_minimo != null ? String(p.estoque_minimo) : '',
       estoque_maximo: p.estoque_maximo != null ? String(p.estoque_maximo) : '',
       comissao_percentual: p.comissao_percentual != null ? String(p.comissao_percentual) : '',
     })
@@ -383,31 +382,10 @@ export default function Produtos() {
           <button className="btn btn-icon" onClick={() => setResultadoImportacao(null)}><X size={12} /></button>
         </motion.div>
       )}
-      {alertas.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '10px',
-            padding: '12px 16px',
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid #333',
-            borderRadius: '8px',
-            marginBottom: '20px',
-          }}
-        >
-          <AlertTriangle size={14} style={{ color: '#A3A3A3', flexShrink: 0 }} />
-          <p style={{ fontSize: '13px', color: '#A3A3A3' }}>
-            <strong style={{ color: '#FFFFFF' }}>{alertas.length} produto{alertas.length > 1 ? 's' : ''}</strong>{' '}
-            abaixo do estoque mínimo: {alertas.map(p => p.nome).join(', ')}.
-          </p>
-        </motion.div>
-      )}
-
       <div className="card desktop-row" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="list-header" style={{
           display: 'grid',
-          gridTemplateColumns: '28px 1fr 100px 120px 120px 90px 90px 80px 76px',
+          gridTemplateColumns: '28px 1fr 100px 120px 120px 90px 80px 76px',
           padding: '10px 24px',
           borderBottom: '1px solid #222',
           fontSize: '10px', fontWeight: 600, color: '#444',
@@ -417,7 +395,7 @@ export default function Produtos() {
         }}>
           <input type="checkbox" checked={produtos.length > 0 && selecionados.size === produtos.length} onChange={toggleSelecionarTodos} />
           <span>Produto</span><span>Categoria</span><span>Custo</span>
-          <span>Venda</span><span>Estoque</span><span>Mínimo</span><span>Status</span><span></span>
+          <span>Venda</span><span>Estoque</span><span>Status</span><span></span>
         </div>
 
         {loading ? (
@@ -429,7 +407,6 @@ export default function Produtos() {
             Nenhum produto cadastrado.
           </div>
         ) : produtos.map((p, i) => {
-          const baixo  = p.estoque_atual <= p.estoque_minimo
           const margem = p.preco_custo > 0 ? ((p.preco_venda - p.preco_custo) / p.preco_custo * 100).toFixed(0) : null
           return (
             <motion.div
@@ -438,7 +415,7 @@ export default function Produtos() {
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '28px 1fr 100px 120px 120px 90px 90px 80px 76px',
+                gridTemplateColumns: '28px 1fr 100px 120px 120px 90px 80px 76px',
                 padding: '14px 24px',
                 borderBottom: i < produtos.length - 1 ? '1px solid #1F1F1F' : 'none',
                 alignItems: 'center',
@@ -463,11 +440,9 @@ export default function Produtos() {
               <span style={{ fontSize: '12px', color: '#666', textTransform: 'capitalize' }}>{CAT_LABEL[p.categoria]}</span>
               <span style={{ fontSize: '13px', color: '#555' }}>{formatCurrency(p.preco_custo)}</span>
               <span style={{ fontSize: '13px', color: '#A3A3A3', fontWeight: 500 }}>{formatCurrency(p.preco_venda)}</span>
-              <span style={{ fontSize: '14px', fontWeight: 700, color: baixo ? '#FFFFFF' : '#A3A3A3' }}>
+              <span style={{ fontSize: '14px', fontWeight: 700, color: '#A3A3A3' }}>
                 {p.estoque_atual} {p.unidade}
-                {baixo && <AlertTriangle size={12} style={{ marginLeft: '4px', color: '#777', verticalAlign: 'middle' }} />}
               </span>
-              <span style={{ fontSize: '13px', color: '#444' }}>{p.estoque_minimo}</span>
               <button
                 onClick={() => toggleAtivoProd(p.id, p.ativo)}
                 style={{
@@ -497,7 +472,6 @@ export default function Produtos() {
       {!loading && produtos.length > 0 && (
         <div className="entity-grid mobile-only-grid" style={{ gap: '16px' }}>
           {produtos.map((p, i) => {
-            const baixo  = p.estoque_atual <= p.estoque_minimo
             const margem = p.preco_custo > 0 ? ((p.preco_venda - p.preco_custo) / p.preco_custo * 100).toFixed(0) : null
             const detalhes = [p.sku && `#${p.sku}`, margem && `+${margem}% margem`, p.comissao_percentual != null && `comissão ${p.comissao_percentual}%`].filter(Boolean).join(' · ')
             return (
@@ -545,8 +519,8 @@ export default function Produtos() {
                   </div>
                   <div>
                     <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>Estoque</p>
-                    <p style={{ fontSize: '13px', color: baixo ? '#FFFFFF' : '#A3A3A3', fontWeight: baixo ? 700 : 400 }}>
-                      {p.estoque_atual} {p.unidade} {baixo && <AlertTriangle size={11} style={{ marginLeft: '2px', color: '#777', verticalAlign: 'middle' }} />}
+                    <p style={{ fontSize: '13px', color: '#A3A3A3' }}>
+                      {p.estoque_atual} {p.unidade}
                     </p>
                   </div>
                   <div>
@@ -665,7 +639,7 @@ export default function Produtos() {
                   )}
                   <div className="field">
                     <label className="label">Estoque Mínimo</label>
-                    <input className="input" type="number" min={0} placeholder="5" value={prodForm.estoque_minimo} onChange={e => setProdForm(f => ({ ...f, estoque_minimo: e.target.value }))} />
+                    <input className="input" type="number" min={0} placeholder="opcional" value={prodForm.estoque_minimo} onChange={e => setProdForm(f => ({ ...f, estoque_minimo: e.target.value }))} />
                   </div>
                   <div className="field">
                     <label className="label">Estoque Máximo</label>
