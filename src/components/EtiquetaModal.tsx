@@ -24,7 +24,7 @@ const LAYOUT_PADRAO = {
   // que o grid não captura, ou arredondamento de impressão). 0 = desligado.
   // Valor inicial calibrado com base em teste real: colunas 1-2 batiam certo,
   // a partir da 3 o desvio pra esquerda crescia a cada coluna.
-  compensacaoColuna: 0.6,
+  compensacaoColuna: 1.0,
 }
 
 interface Copia {
