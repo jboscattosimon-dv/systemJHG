@@ -549,6 +549,19 @@ export default function Produtos() {
                   </div>
                 </div>
 
+                {p.tamanhos && p.tamanhos.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '12px' }}>
+                    {p.tamanhos.map(t => (
+                      <span key={t.tamanho} style={{
+                        fontSize: '10px', padding: '2px 7px', borderRadius: '99px',
+                        border: '1px solid #2A2A2A', color: t.quantidade > 0 ? '#A3A3A3' : '#444',
+                      }}>
+                        {t.tamanho}:{t.quantidade}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
                 <div className="entity-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
                   <button className="btn btn-icon" title="Editar" onClick={() => abrirEdicaoProd(p)}>
                     <Pencil size={12} />
