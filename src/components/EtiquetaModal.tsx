@@ -63,6 +63,19 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado }: {
       const svg = refs.current[c.chave]
       if (codigo && svg) {
         JsBarcode(svg, codigo, { format: 'CODE128', width: 1, height: 18, fontSize: 8, margin: 2, displayValue: true })
+
+        // JsBarcode desenha em pixels fixos (a largura cresce com o tamanho
+        // do código) — sem isso, um SKU mais longo sai mais largo que a
+        // etiqueta e é cortado pela vizinha. Faz o SVG escalar pra caber.
+        const w = svg.getAttribute('width')
+        const h = svg.getAttribute('height')
+        if (w && h) {
+          svg.setAttribute('viewBox', `0 0 ${w} ${h}`)
+          svg.setAttribute('width', '100%')
+          svg.setAttribute('height', 'auto')
+          svg.style.maxWidth = '100%'
+          svg.style.maxHeight = `${layout.altura * 0.55}mm`
+        }
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -171,7 +184,7 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado }: {
                     <p style={{ fontSize: '7px', fontWeight: 700, color: '#111', lineHeight: 1.2 }}>
                       {formatCurrency(c.produto.preco_venda)}
                     </p>
-                    <svg ref={el => { refs.current[c.chave] = el }} />
+                    <svg ref={el => { refs.current[c.chave] = el }} style={{ display: 'block', width: '100%' }} />
                   </div>
                 ))}
               </div>
