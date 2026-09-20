@@ -119,10 +119,10 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
       const codigo = codigos[c.produto.id]
       const svg = refs.current[c.chave]
       if (codigo && svg) {
-        // height mais alto (era 18) + menos "peso" no texto/margem embaixo
-        // do código = mais barra de verdade depois de escalar, mais fácil
-        // de focar e ler com câmera de celular.
-        JsBarcode(svg, codigo, { format: 'CODE128', width: 1, height: 30, fontSize: 7, margin: 1, displayValue: true })
+        // height mais alto (era 18, depois 30) + menos "peso" no texto/margem
+        // embaixo do código = mais barra de verdade depois de escalar, mais
+        // fácil de focar e ler com câmera de celular.
+        JsBarcode(svg, codigo, { format: 'CODE128', width: 1, height: 55, fontSize: 7, margin: 1, displayValue: true })
 
         // JsBarcode desenha em pixels fixos (a largura cresce com o tamanho
         // do código) — sem isso, um SKU mais longo sai mais largo que a
@@ -134,7 +134,7 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
           svg.setAttribute('width', '100%')
           svg.setAttribute('height', 'auto')
           svg.style.maxWidth = '100%'
-          svg.style.maxHeight = `${layout.altura * 0.68}mm`
+          svg.style.maxHeight = `${layout.altura * 0.74}mm`
         }
       }
     })
@@ -334,8 +334,15 @@ function EtiquetaEstilos() {
         @page { size: A4; margin: 0; }
         body * { visibility: hidden; }
         #area-impressao, #area-impressao * { visibility: visible; }
+        /* position:fixed não se fragmenta em várias páginas na impressão —
+           só a 1ª folha saía. Usa absolute (que pagina normalmente) e
+           libera o overflow/max-height do card do modal, que também
+           cortava o conteúdo além da área visível na tela. */
+        .no-print-hide {
+          overflow: visible !important; max-height: none !important;
+        }
         #area-impressao {
-          position: fixed; inset: 0; margin: 0; padding: 0;
+          position: absolute; top: 0; left: 0; margin: 0; padding: 0;
         }
         .etiquetas-preview-zoom { zoom: 1; }
         .folha-etiquetas { break-after: page; }
