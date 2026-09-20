@@ -19,17 +19,12 @@ const LAYOUT_PADRAO = {
   margemLeft: 10.5,
   gapH: 0,
   gapV: 0,
-  // Compensação fina por coluna (mm): soma progressiva por índice de coluna,
-  // pra corrigir desvio acumulado (ex: folha com pequena folga entre etiquetas
-  // que o grid não captura, ou arredondamento de impressão). 0 = desligado.
-  // Valor inicial calibrado com base em teste real: colunas 1-2 batiam certo,
-  // a partir da 3 o desvio pra esquerda crescia a cada coluna.
-  compensacaoColuna: 1.0,
-  // Empurrão extra (mm) só pras duas últimas colunas — o desvio acumulado
-  // não é perfeitamente linear, então além da compensação por coluna acima,
-  // as colunas finais (5ª e 6ª) precisam de um pouco mais.
-  extraUltimasColunas: 0.3,
 }
+
+// Compensação fina por coluna (mm), calibrada manualmente com testes reais
+// de impressão — o desvio acumulado na folha não é perfeitamente linear,
+// então cada coluna tem seu próprio ajuste em vez de uma fórmula única.
+const COMPENSACAO_COLUNA_PADRAO = [0, 1.0, 2.0, 3.7, 4.3, 6.0]
 
 interface Copia {
   chave: string
@@ -69,7 +64,17 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
   const [codigos, setCodigos] = useState<Record<string, string>>({})
   const [quantidades, setQuantidades] = useState<Record<string, number>>(() => quantidadesPadrao(produtos))
   const [layout, setLayout] = useState(LAYOUT_PADRAO)
+  const [compensacaoColuna, setCompensacaoColuna] = useState<number[]>(COMPENSACAO_COLUNA_PADRAO)
   const refs = useRef<Record<string, SVGSVGElement | null>>({})
+
+  function setCompensacao(col: number, valor: number) {
+    setCompensacaoColuna(prev => {
+      const next = [...prev]
+      while (next.length <= col) next.push(0)
+      next[col] = valor
+      return next
+    })
+  }
 
   useEffect(() => {
     setCodigos(prev => {
@@ -223,11 +228,27 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
             {campoLayout('Margem esquerda (mm)', 'margemLeft', 0.5)}
             {campoLayout('Espaço horizontal (mm)', 'gapH', 0.5)}
             {campoLayout('Espaço vertical (mm)', 'gapV', 0.5)}
-            {campoLayout('Compensação por coluna (mm)', 'compensacaoColuna', 0.1)}
-            {campoLayout('Extra nas 2 últimas colunas (mm)', 'extraUltimasColunas', 0.1)}
           </div>
-          <p style={{ fontSize: '11px', color: '#444', marginTop: '8px' }}>
-            {porPagina} etiquetas por folha · {paginas.length} folha{paginas.length === 1 ? '' : 's'} · Se a primeira impressão sair desalinhada, ajuste as margens aqui e imprima de novo. Se só as últimas colunas ficarem desalinhadas (código de barras cortando pra esquerda), aumente aos poucos a "Compensação por coluna" — ela empurra cada coluna um pouco mais pra direita conforme se afasta da primeira.
+
+          <p style={{ fontSize: '11px', color: '#666', marginTop: '14px', marginBottom: '8px' }}>
+            Compensação individual por coluna (mm) — empurra só aquela coluna pra direita, sem afetar as outras:
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px' }}>
+            {Array.from({ length: layout.colunas }, (_, col) => (
+              <div key={col} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', color: '#666' }}>Col. {col + 1}</label>
+                <input
+                  className="input" type="number" step={0.05}
+                  style={{ fontSize: '12px', padding: '6px 8px' }}
+                  value={compensacaoColuna[col] ?? 0}
+                  onChange={e => setCompensacao(col, Number(e.target.value))}
+                />
+              </div>
+            ))}
+          </div>
+
+          <p style={{ fontSize: '11px', color: '#444', marginTop: '10px' }}>
+            {porPagina} etiquetas por folha · {paginas.length} folha{paginas.length === 1 ? '' : 's'} · Se a impressão sair desalinhada, ajuste as margens e a compensação por coluna acima e imprima de novo.
           </p>
         </details>
 
@@ -248,8 +269,7 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
                 {pagina.map((c, idx) => {
                   const col = idx % layout.colunas
                   const row = Math.floor(idx / layout.colunas)
-                  const extra = col >= layout.colunas - 2 ? layout.extraUltimasColunas : 0
-                  const left = layout.margemLeft + col * (layout.largura + layout.gapH) + col * layout.compensacaoColuna + extra
+                  const left = layout.margemLeft + col * (layout.largura + layout.gapH) + (compensacaoColuna[col] ?? 0)
                   const top = layout.margemTop + row * (layout.altura + layout.gapV)
                   return (
                     <div
