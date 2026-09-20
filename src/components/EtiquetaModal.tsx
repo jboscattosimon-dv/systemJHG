@@ -15,7 +15,7 @@ const LAYOUT_PADRAO = {
   linhas: 16,
   largura: 31,
   altura: 17,
-  margemTop: 12.5,
+  margemTop: 12.6,
   margemLeft: 10.5,
   gapH: 0,
   gapV: 0,
@@ -24,7 +24,7 @@ const LAYOUT_PADRAO = {
   // que o grid não captura, ou arredondamento de impressão). 0 = desligado.
   // Valor inicial calibrado com base em teste real: colunas 1-2 batiam certo,
   // a partir da 3 o desvio pra esquerda crescia a cada coluna.
-  compensacaoColuna: 0.4,
+  compensacaoColuna: 0.6,
 }
 
 interface Copia {
