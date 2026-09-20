@@ -181,6 +181,7 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
   // #area-impressao, então ele ficava preso dentro daquele container).
   return createPortal((
     <motion.div
+      className="etiqueta-overlay-print-reset"
       style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       onClick={e => e.target === e.currentTarget && onClose()}
@@ -188,14 +189,14 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
       <EtiquetaEstilos />
       <motion.div className="card no-print-hide" style={{ width: '100%', maxWidth: '640px', padding: '28px', maxHeight: '85vh', overflowY: 'auto' }}
         initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+        <div className="print-hide-inside" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
           <h2 style={{ fontSize: '18px', color: '#FFFFFF' }}>
             {multiplo ? `Etiquetas — ${produtos.length} produtos` : `Etiqueta — ${produtos[0]?.nome}`}
           </h2>
           <button className="btn btn-icon" onClick={onClose}><X size={14} /></button>
         </div>
         {permitirAjusteQuantidade ? (
-          <>
+          <div className="print-hide-inside">
             <p style={{ fontSize: '12px', color: '#555', marginBottom: '16px' }}>
               Quantidade de cópias já vem preenchida com o estoque (por tamanho, quando tiver) — ajuste se quiser imprimir menos.
             </p>
@@ -235,14 +236,14 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
                 )
               })}
             </div>
-          </>
+          </div>
         ) : (
-          <p style={{ fontSize: '12px', color: '#555', marginBottom: '16px' }}>
+          <p className="print-hide-inside" style={{ fontSize: '12px', color: '#555', marginBottom: '16px' }}>
             Imprimindo {totalEtiquetas} etiqueta{totalEtiquetas === 1 ? '' : 's'}, uma por unidade em estoque.
           </p>
         )}
 
-        <details style={{ marginBottom: '16px' }}>
+        <details className="print-hide-inside" style={{ marginBottom: '16px' }}>
           <summary style={{ fontSize: '12px', color: '#666', cursor: 'pointer', marginBottom: '10px' }}>
             Folha de etiquetas (padrão: Pimaco A4348 — 96 etiquetas 31×17mm, 6×16)
           </summary>
@@ -308,9 +309,13 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
           </p>
         </details>
 
+        <p className="print-hide-inside" style={{ fontSize: '11px', color: '#444' }}>
+          {porPagina} etiquetas por folha · {paginas.length} folha{paginas.length === 1 ? '' : 's'} · a pré-visualização não aparece na tela, só na impressão.
+        </p>
+
+        {/* Só aparece na impressão (@media print) — não tem preview na tela. */}
         <div id="area-impressao">
-          <div className="etiquetas-preview-zoom">
-            {paginas.map((pagina, pIdx) => (
+          {paginas.map((pagina, pIdx) => (
               <div
                 key={pIdx}
                 className="folha-etiquetas"
@@ -350,11 +355,10 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
                   )
                 })}
               </div>
-            ))}
-          </div>
+          ))}
         </div>
 
-        <button className="btn btn-primary btn-full" onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '16px' }} disabled={totalEtiquetas === 0}>
+        <button className="btn btn-primary btn-full print-hide-inside" onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '16px' }} disabled={totalEtiquetas === 0}>
           <Printer size={14} /> Imprimir {totalEtiquetas > 0 ? `(${totalEtiquetas})` : ''}
         </button>
       </motion.div>
@@ -365,24 +369,29 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
 function EtiquetaEstilos() {
   return (
     <style>{`
-      #area-impressao { margin-bottom: 8px; }
-      .etiquetas-preview-zoom { zoom: 1.8; }
+      /* #area-impressao só existe pra impressão — sem preview na tela.
+         Usa max-height:0+overflow:hidden (não display:none) pra continuar
+         em fluxo/layout normal, senão o JsBarcode não consegue medir o
+         texto do código de barras (svg fora do layout mede 0). Nada de
+         position:fixed/absolute nele: conteúdo posicionado assim não
+         conta na altura do fluxo do documento, que é o que o motor de
+         impressão usa pra decidir quantas páginas existem — por isso
+         sempre parava na 1ª folha. */
+      #area-impressao { max-height: 0; overflow: hidden; }
 
       @media print {
         @page { size: A4; margin: 0; }
-        body * { visibility: hidden; }
-        #area-impressao, #area-impressao * { visibility: visible; }
-        /* position:fixed não se fragmenta em várias páginas na impressão —
-           só a 1ª folha saía. Usa absolute (que pagina normalmente) e
-           libera o overflow/max-height do card do modal, que também
-           cortava o conteúdo além da área visível na tela. */
+        #root { display: none !important; }
+        .print-hide-inside { display: none !important; }
+        .etiqueta-overlay-print-reset {
+          position: static !important; inset: auto !important; display: block !important;
+          padding: 0 !important; background: none !important;
+        }
         .no-print-hide {
-          overflow: visible !important; max-height: none !important;
+          position: static !important; width: 210mm !important; max-width: none !important;
+          max-height: none !important; overflow: visible !important; padding: 0 !important; margin: 0 !important;
         }
-        #area-impressao {
-          position: absolute; top: 0; left: 0; margin: 0; padding: 0;
-        }
-        .etiquetas-preview-zoom { zoom: 1; }
+        #area-impressao { max-height: none; overflow: visible; margin: 0; padding: 0; }
         .folha-etiquetas { break-after: page; }
         .folha-etiquetas:last-child { break-after: auto; }
         .etiqueta-fisica { break-inside: avoid; }
