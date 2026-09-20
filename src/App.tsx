@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { usePerfil } from './hooks/usePerfil'
@@ -72,7 +73,13 @@ function BannerAtualizacao() {
     }}>
       <span style={{ fontWeight: 600 }}>Uma versão nova do sistema está disponível.</span>
       <button
-        onClick={() => window.location.reload()}
+        onClick={() => {
+          // location.reload() nem sempre ignora o cache (especialmente no modo
+          // "Tela de Início" do Safari) — troca a URL pra forçar buscar de verdade.
+          const url = new URL(window.location.href)
+          url.searchParams.set('_v', Date.now().toString())
+          window.location.href = url.toString()
+        }}
         style={{
           padding: '5px 14px', borderRadius: '99px', border: 'none',
           background: '#000000', color: '#FFFFFF', fontSize: '12px', fontWeight: 600,
@@ -86,6 +93,16 @@ function BannerAtualizacao() {
 }
 
 export default function App() {
+  // Limpa o "?_v=..." que o botão de atualizar usa pra forçar buscar
+  // a versão nova sem cache — some da barra de endereço depois de carregar.
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (url.searchParams.has('_v')) {
+      url.searchParams.delete('_v')
+      window.history.replaceState(null, '', url.toString())
+    }
+  }, [])
+
   return (
     <>
       <BannerAtualizacao />
