@@ -6,15 +6,17 @@ import { supabase } from '../lib/supabase'
 import { formatCurrency, gerarCodigoProduto } from '../lib/utils'
 import type { Produto } from '../types'
 
-// Padrão da folha Pimaco A4348: 96 etiquetas de 17x31mm por folha A4,
-// em 12 colunas x 8 linhas. Margens ajustáveis pra calibrar na impressora.
+// Padrão da folha Pimaco A4348: 96 etiquetas de 31x17mm (deitada) por
+// folha A4, em 6 colunas x 16 linhas. Margens ajustáveis pra calibrar
+// na impressora — centralizadas por padrão (6×31mm=186mm de 210mm de
+// largura, 16×17mm=272mm de 297mm de altura).
 const LAYOUT_PADRAO = {
-  colunas: 12,
-  linhas: 8,
-  largura: 17,
-  altura: 31,
-  margemTop: 24.5,
-  margemLeft: 3,
+  colunas: 6,
+  linhas: 16,
+  largura: 31,
+  altura: 17,
+  margemTop: 12.5,
+  margemLeft: 12,
   gapH: 0,
   gapV: 0,
 }
@@ -185,7 +187,7 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado }: {
 
         <details style={{ marginBottom: '16px' }}>
           <summary style={{ fontSize: '12px', color: '#666', cursor: 'pointer', marginBottom: '10px' }}>
-            Folha de etiquetas (padrão: Pimaco A4348 — 96 etiquetas 17×31mm)
+            Folha de etiquetas (padrão: Pimaco A4348 — 96 etiquetas 31×17mm, 6×16)
           </summary>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginTop: '10px' }}>
             {campoLayout('Colunas', 'colunas')}
