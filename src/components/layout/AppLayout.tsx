@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import type { HeaderBuscaContexto } from '../../hooks/useHeaderBusca'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronRight, Bell, Search, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import Sidebar from './Sidebar'
@@ -39,11 +40,16 @@ export default function AppLayout() {
     if (typeof window !== 'undefined' && window.innerWidth < 768) return true
     try { return localStorage.getItem(SIDEBAR_KEY) === '1' } catch { return false }
   })
+  const [headerBusca, setHeaderBusca] = useState('')
 
   const semLoja = !perfilLoading && papel !== null && papel !== 'super_admin' && !empresaId && location.pathname !== '/empresas'
+  // A busca do cabeçalho só faz sentido (por enquanto) na tela de Produtos —
+  // só aparece lá, pra não parecer que busca em qualquer tela sem fazer nada.
+  const buscaAtiva = location.pathname === '/produtos'
 
   useEffect(() => {
     if (window.innerWidth < 768) setSidebarHidden(true)
+    setHeaderBusca('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname])
 
@@ -104,31 +110,36 @@ export default function AppLayout() {
           {/* Actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {/* Search */}
-            <div className="app-header-search" style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '7px 12px',
-              background: '#1A1A1A',
-              border: '1px solid #252525',
-              borderRadius: '8px',
-              cursor: 'text',
-            }}>
-              <Search size={12} style={{ color: '#444' }} />
-              <input
-                type="text"
-                placeholder="Buscar..."
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  fontSize: '12px',
-                  color: '#A3A3A3',
-                  width: '110px',
-                  fontFamily: 'inherit',
-                }}
-              />
-            </div>
+            {buscaAtiva && (
+              <div className="app-header-search" style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '7px 12px',
+                background: '#1A1A1A',
+                border: '1px solid #252525',
+                borderRadius: '8px',
+                cursor: 'text',
+              }}>
+                <Search size={12} style={{ color: '#444' }} />
+                <input
+                  type="text"
+                  placeholder="Buscar produto..."
+                  value={headerBusca}
+                  onChange={e => setHeaderBusca(e.target.value)}
+                  autoComplete="off"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    fontSize: '12px',
+                    color: '#A3A3A3',
+                    width: '130px',
+                    fontFamily: 'inherit',
+                  }}
+                />
+              </div>
+            )}
 
             {/* Notifications */}
             <button style={{
@@ -154,6 +165,32 @@ export default function AppLayout() {
           </div>
         </div>
 
+        {/* Busca (mobile) — o cabeçalho esconde a busca ali de cima no mobile
+            por falta de espaço, então essa linha aparece só lá embaixo dele
+            quando a busca está ativa pra essa tela. */}
+        {buscaAtiva && (
+          <div className="mobile-search-row" style={{
+            alignItems: 'center', gap: '8px',
+            padding: '10px 14px',
+            background: '#1A1A1A',
+            borderBottom: '1px solid #1F1F1F',
+            flexShrink: 0,
+          }}>
+            <Search size={13} style={{ color: '#444', flexShrink: 0 }} />
+            <input
+              type="text"
+              placeholder="Buscar produto..."
+              value={headerBusca}
+              onChange={e => setHeaderBusca(e.target.value)}
+              autoComplete="off"
+              style={{
+                flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                fontSize: '13px', color: '#A3A3A3', fontFamily: 'inherit',
+              }}
+            />
+          </div>
+        )}
+
         {/* Page content */}
         <AnimatePresence mode="wait">
           <motion.main
@@ -174,7 +211,7 @@ export default function AppLayout() {
                 </p>
               </div>
             ) : (
-              <Outlet />
+              <Outlet context={{ headerBusca, setHeaderBusca } satisfies HeaderBuscaContexto} />
             )}
           </motion.main>
         </AnimatePresence>

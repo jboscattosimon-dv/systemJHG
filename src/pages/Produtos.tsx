@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { formatCurrency } from '../lib/utils'
 import EtiquetaModal from '../components/EtiquetaModal'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
+import { useHeaderBusca } from '../hooks/useHeaderBusca'
 import type { Produto, ProdutoCategoria } from '../types'
 
 const CAT_LABEL: Record<ProdutoCategoria, string> = {
@@ -146,6 +147,7 @@ async function lerPlanilhaProdutos(arquivo: File): Promise<{ validas: LinhaImpor
 
 export default function Produtos() {
   const [produtos, setProdutos] = useState<Produto[]>([])
+  const { headerBusca: busca } = useHeaderBusca()
   const [showProdModal, setShowProdModal] = useState(false)
   const [editProdId, setEditProdId] = useState<string | null>(null)
   const [prodForm, setProdForm] = useState({
@@ -166,6 +168,11 @@ export default function Produtos() {
 
   const temTamanhosForm = prodTamanhos.some(t => t.tamanho.trim())
   const totalTamanhosForm = prodTamanhos.filter(t => t.tamanho.trim()).reduce((s, t) => s + (Number(t.quantidade) || 0), 0)
+
+  const produtosFiltrados = produtos.filter(p =>
+    p.nome.toLowerCase().includes(busca.toLowerCase()) ||
+    (p.sku ?? '').toLowerCase().includes(busca.toLowerCase())
+  )
 
   async function handleImportarArquivo(e: ChangeEvent<HTMLInputElement>) {
     const arquivo = e.target.files?.[0]
@@ -204,7 +211,7 @@ export default function Produtos() {
   }
 
   function toggleSelecionarTodos() {
-    setSelecionados(prev => prev.size === produtos.length ? new Set() : new Set(produtos.map(p => p.id)))
+    setSelecionados(prev => prev.size === produtosFiltrados.length ? new Set() : new Set(produtosFiltrados.map(p => p.id)))
   }
 
   function imprimirSelecionados() {
@@ -322,9 +329,9 @@ export default function Produtos() {
           <p style={{ fontSize: '13px', color: '#555', marginTop: '3px' }}>Estoque e catálogo da loja</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {produtos.length > 0 && (
+          {produtosFiltrados.length > 0 && (
             <button className="btn btn-secondary btn-sm" onClick={toggleSelecionarTodos} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Check size={12} /> {selecionados.size === produtos.length ? 'Desmarcar todos' : 'Selecionar todos'}
+              <Check size={12} /> {selecionados.size === produtosFiltrados.length ? 'Desmarcar todos' : 'Selecionar todos'}
             </button>
           )}
           {selecionados.size > 0 && (
@@ -393,7 +400,7 @@ export default function Produtos() {
           background: 'rgba(0,0,0,0.2)',
           alignItems: 'center',
         }}>
-          <input type="checkbox" checked={produtos.length > 0 && selecionados.size === produtos.length} onChange={toggleSelecionarTodos} />
+          <input type="checkbox" checked={produtosFiltrados.length > 0 && selecionados.size === produtosFiltrados.length} onChange={toggleSelecionarTodos} />
           <span>Produto</span><span>Categoria</span><span>Custo</span>
           <span>Venda</span><span>Estoque</span><span>Status</span><span></span>
         </div>
@@ -402,11 +409,11 @@ export default function Produtos() {
           <div style={{ padding: '56px', textAlign: 'center', color: '#444', fontSize: '13px' }}>
             Carregando...
           </div>
-        ) : produtos.length === 0 ? (
+        ) : produtosFiltrados.length === 0 ? (
           <div style={{ padding: '56px', textAlign: 'center', color: '#444', fontSize: '13px' }}>
-            Nenhum produto cadastrado.
+            {busca ? 'Nenhum produto encontrado.' : 'Nenhum produto cadastrado.'}
           </div>
-        ) : produtos.map((p, i) => {
+        ) : produtosFiltrados.map((p, i) => {
           const margem = p.preco_custo > 0 ? ((p.preco_venda - p.preco_custo) / p.preco_custo * 100).toFixed(0) : null
           return (
             <motion.div
@@ -417,7 +424,7 @@ export default function Produtos() {
                 display: 'grid',
                 gridTemplateColumns: '28px 1fr 100px 120px 120px 90px 80px 76px',
                 padding: '14px 24px',
-                borderBottom: i < produtos.length - 1 ? '1px solid #1F1F1F' : 'none',
+                borderBottom: i < produtosFiltrados.length - 1 ? '1px solid #1F1F1F' : 'none',
                 alignItems: 'center',
               }}
               whileHover={{ backgroundColor: 'rgba(255,255,255,0.02)' }}
@@ -469,9 +476,9 @@ export default function Produtos() {
       </div>
 
       {/* Cards (mobile) */}
-      {!loading && produtos.length > 0 && (
+      {!loading && produtosFiltrados.length > 0 && (
         <div className="entity-grid mobile-only-grid" style={{ gap: '16px' }}>
-          {produtos.map((p, i) => {
+          {produtosFiltrados.map((p, i) => {
             const margem = p.preco_custo > 0 ? ((p.preco_venda - p.preco_custo) / p.preco_custo * 100).toFixed(0) : null
             const detalhes = [p.sku && `#${p.sku}`, margem && `+${margem}% margem`, p.comissao_percentual != null && `comissão ${p.comissao_percentual}%`].filter(Boolean).join(' · ')
             return (
@@ -546,9 +553,9 @@ export default function Produtos() {
           })}
         </div>
       )}
-      {!loading && produtos.length === 0 && (
+      {!loading && produtosFiltrados.length === 0 && (
         <div className="card mobile-only-grid" style={{ padding: '56px', textAlign: 'center', color: '#444', fontSize: '13px' }}>
-          Nenhum produto cadastrado.
+          {busca ? 'Nenhum produto encontrado.' : 'Nenhum produto cadastrado.'}
         </div>
       )}
 

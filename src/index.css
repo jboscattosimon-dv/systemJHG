@@ -343,6 +343,10 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
   display: none;
 }
 
+.mobile-search-row {
+  display: none;
+}
+
 /* 100vh no mobile conta a área atrás da barra do navegador (Safari),
    que nem sempre está visível — dvh acompanha a altura real da tela. */
 .app-sidebar {
@@ -435,6 +439,10 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
 
   .app-header-search {
     display: none !important;
+  }
+
+  .mobile-search-row {
+    display: flex !important;
   }
 
   .dashboard-stats-grid,
