@@ -22,7 +22,9 @@ const LAYOUT_PADRAO = {
   // Compensação fina por coluna (mm): soma progressiva por índice de coluna,
   // pra corrigir desvio acumulado (ex: folha com pequena folga entre etiquetas
   // que o grid não captura, ou arredondamento de impressão). 0 = desligado.
-  compensacaoColuna: 0,
+  // Valor inicial calibrado com base em teste real: colunas 1-2 batiam certo,
+  // a partir da 3 o desvio pra esquerda crescia a cada coluna.
+  compensacaoColuna: 0.4,
 }
 
 interface Copia {
