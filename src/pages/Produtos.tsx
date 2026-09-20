@@ -18,10 +18,11 @@ const COLUNAS_IMPORTACAO = [
 
 interface TamanhoQtd { tamanho: string; quantidade: number }
 
-// Aceita os dois formatos:
-// "P:2, M:3, G:1"  -> tamanho:quantidade explícito
-// "M, M, G, M"     -> repete o tamanho uma vez por unidade (como na
-//                      planilha antiga) — cada repetição soma 1
+// Aceita tamanho de letra (P/M/G) ou número (35, 36, 37...), em três formatos:
+// "P:2, M:3, G:1"   -> tamanho:quantidade explícito
+// "35=8, 36=7"      -> tamanho=quantidade (mesma coisa, com =)
+// "M, M, G, M"      -> repete o tamanho uma vez por unidade (como na
+//                       planilha antiga) — cada repetição soma 1
 function parseTamanhos(valor: unknown): TamanhoQtd[] {
   const texto = String(valor ?? '').trim()
   if (!texto) return []
@@ -30,7 +31,7 @@ function parseTamanhos(valor: unknown): TamanhoQtd[] {
     .map(token => token.trim())
     .filter(Boolean)
     .forEach(token => {
-      const [tam, qtd] = token.split(':').map(s => s.trim())
+      const [tam, qtd] = token.split(/[:=]/).map(s => s.trim())
       if (!tam) return
       const quantidade = qtd !== undefined && qtd !== '' ? numero(qtd, 1) : 1
       acumulado.set(tam, (acumulado.get(tam) ?? 0) + quantidade)
