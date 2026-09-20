@@ -25,6 +25,10 @@ const LAYOUT_PADRAO = {
   // Valor inicial calibrado com base em teste real: colunas 1-2 batiam certo,
   // a partir da 3 o desvio pra esquerda crescia a cada coluna.
   compensacaoColuna: 1.0,
+  // Empurrão extra (mm) só pras duas últimas colunas — o desvio acumulado
+  // não é perfeitamente linear, então além da compensação por coluna acima,
+  // as colunas finais (5ª e 6ª) precisam de um pouco mais.
+  extraUltimasColunas: 0.3,
 }
 
 interface Copia {
@@ -220,6 +224,7 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
             {campoLayout('Espaço horizontal (mm)', 'gapH', 0.5)}
             {campoLayout('Espaço vertical (mm)', 'gapV', 0.5)}
             {campoLayout('Compensação por coluna (mm)', 'compensacaoColuna', 0.1)}
+            {campoLayout('Extra nas 2 últimas colunas (mm)', 'extraUltimasColunas', 0.1)}
           </div>
           <p style={{ fontSize: '11px', color: '#444', marginTop: '8px' }}>
             {porPagina} etiquetas por folha · {paginas.length} folha{paginas.length === 1 ? '' : 's'} · Se a primeira impressão sair desalinhada, ajuste as margens aqui e imprima de novo. Se só as últimas colunas ficarem desalinhadas (código de barras cortando pra esquerda), aumente aos poucos a "Compensação por coluna" — ela empurra cada coluna um pouco mais pra direita conforme se afasta da primeira.
@@ -243,7 +248,8 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
                 {pagina.map((c, idx) => {
                   const col = idx % layout.colunas
                   const row = Math.floor(idx / layout.colunas)
-                  const left = layout.margemLeft + col * (layout.largura + layout.gapH) + col * layout.compensacaoColuna
+                  const extra = col >= layout.colunas - 2 ? layout.extraUltimasColunas : 0
+                  const left = layout.margemLeft + col * (layout.largura + layout.gapH) + col * layout.compensacaoColuna + extra
                   const top = layout.margemTop + row * (layout.altura + layout.gapV)
                   return (
                     <div
