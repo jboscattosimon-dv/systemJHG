@@ -430,17 +430,26 @@ export default function Produtos() {
               whileHover={{ backgroundColor: 'rgba(255,255,255,0.02)' }}
             >
               <input type="checkbox" checked={selecionados.has(p.id)} onChange={() => toggleSelecionado(p.id)} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Package size={13} style={{ color: '#444', flexShrink: 0 }} />
-                <div>
-                  <span style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF' }}>{p.nome}</span>
-                  {p.sku && <span style={{ fontSize: '10px', color: '#444', marginLeft: '8px' }}>#{p.sku}</span>}
-                  {margem && <span style={{ fontSize: '10px', color: '#555', marginLeft: '8px' }}>+{margem}% margem</span>}
-                  {p.comissao_percentual != null && <span style={{ fontSize: '10px', color: '#555', marginLeft: '8px' }}>comissão {p.comissao_percentual}%</span>}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                <Package size={13} style={{ color: '#444', flexShrink: 0, marginTop: '2px' }} />
+                <div style={{ minWidth: 0 }}>
+                  <div>
+                    <span style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF' }}>{p.nome}</span>
+                    {p.sku && <span style={{ fontSize: '10px', color: '#444', marginLeft: '8px' }}>#{p.sku}</span>}
+                    {margem && <span style={{ fontSize: '10px', color: '#555', marginLeft: '8px' }}>+{margem}% margem</span>}
+                    {p.comissao_percentual != null && <span style={{ fontSize: '10px', color: '#555', marginLeft: '8px' }}>comissão {p.comissao_percentual}%</span>}
+                  </div>
                   {p.tamanhos && p.tamanhos.length > 0 && (
-                    <span style={{ fontSize: '10px', color: '#555', marginLeft: '8px' }}>
-                      {p.tamanhos.map(t => `${t.tamanho}:${t.quantidade}`).join(' ')}
-                    </span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '5px' }}>
+                      {p.tamanhos.map(t => (
+                        <span key={t.tamanho} style={{
+                          fontSize: '10px', padding: '1px 6px', borderRadius: '99px',
+                          border: '1px solid #2A2A2A', color: t.quantidade > 0 ? '#777' : '#444',
+                        }}>
+                          {t.tamanho}:{t.quantidade}
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
