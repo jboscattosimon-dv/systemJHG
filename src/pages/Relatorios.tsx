@@ -111,7 +111,7 @@ export default function Relatorios() {
       supabase.from('sessoes_caixa').select('*').order('aberto_em', { ascending: false }),
       supabase.from('comissoes').select('*, profissional:profissionais(nome)').gte('created_at', inicioTS).lte('created_at', fimTS),
       supabase.from('clientes').select('*'),
-      supabase.from('produtos').select('*'),
+      supabase.from('produtos').select('*').gte('created_at', inicioTS).lte('created_at', fimTS),
       supabase.from('movimentacoes_estoque').select('*, produto:produtos(nome)').gte('created_at', inicioTS).lte('created_at', fimTS).order('created_at', { ascending: false }).limit(100),
       supabase.from('agendamentos').select('status, profissional_id, profissional:profissionais(nome), servico:servicos(nome)').gte('data_hora', inicioTS).lte('data_hora', fimTS),
       supabase.from('profissionais').select('id, nome').order('nome'),
@@ -213,8 +213,9 @@ export default function Relatorios() {
   const clientesInativos = clientes.filter(c => !c.ativo).length
   const porClienteFiltrado = Object.values(porCliente).filter(c => c.nome.toLowerCase().includes(buscaCliente.toLowerCase()))
 
-  // ── Produtos ─────────────────────────────────────────────
-  const estoqueBaixo = produtosFiltrados.filter(p => p.estoque_atual <= p.estoque_minimo && p.ativo)
+  // ── Produtos (cadastrados no período selecionado) ──────────
+  const estoqueTotalPeriodo = produtosFiltrados.reduce((s, p) => s + (p.estoque_atual ?? 0), 0)
+  const estoqueBaixo = produtosFiltrados.filter(p => p.estoque_minimo != null && p.estoque_atual <= p.estoque_minimo && p.ativo)
   const idsVendidos = new Set(itensVenda.filter((i: any) => i.tipo === 'produto').map((i: any) => i.referencia_id))
   const produtosSemVenda = produtosFiltrados.filter(p => p.ativo && !idsVendidos.has(p.id))
 
@@ -453,7 +454,11 @@ export default function Relatorios() {
 
             {aba === 'produtos' && (
               <>
-                <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
+                <p style={{ fontSize: '12px', color: '#555', marginBottom: '12px' }}>
+                  Cadastrados entre {formatDate(inicio)} e {formatDate(fim)}: <strong style={{ color: '#A3A3A3' }}>{produtosFiltrados.length}</strong>
+                </p>
+                <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' }}>
+                  <Stat label="Estoque total (cadastrado no período)" value={String(estoqueTotalPeriodo)} />
                   <Stat label="Estoque baixo" value={String(estoqueBaixo.length)} />
                   <Stat label="Sem venda no período" value={String(produtosSemVenda.length)} />
                   <Stat label="Movimentações no período" value={String(movimentacoes.length)} />
