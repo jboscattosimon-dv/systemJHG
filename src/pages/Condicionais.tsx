@@ -32,6 +32,11 @@ export default function Condicionais() {
   // Novo condicional
   const [showNovo, setShowNovo] = useState(false)
   const [clienteId, setClienteId] = useState('')
+  const [buscaCliente, setBuscaCliente] = useState('')
+  const [showNovoCliente, setShowNovoCliente] = useState(false)
+  const [novoClienteForm, setNovoClienteForm] = useState({ nome: '', telefone: '' })
+  const [savingCliente, setSavingCliente] = useState(false)
+  const [erroCliente, setErroCliente] = useState('')
   const [observacao, setObservacao] = useState('')
   const [itensNovo, setItensNovo] = useState<ItemNovo[]>([])
   const [buscaProduto, setBuscaProduto] = useState('')
@@ -73,8 +78,41 @@ export default function Condicionais() {
     [produtos, buscaProduto]
   )
 
+  const clientesFiltrados = useMemo(() =>
+    clientes.filter(c => c.nome.toLowerCase().includes(buscaCliente.toLowerCase()) || c.telefone.includes(buscaCliente)),
+    [clientes, buscaCliente]
+  )
+
   function resetNovo() {
-    setClienteId(''); setObservacao(''); setItensNovo([]); setBuscaProduto(''); setError('')
+    setClienteId(''); setBuscaCliente(''); setObservacao(''); setItensNovo([]); setBuscaProduto(''); setError('')
+  }
+
+  function selecionarCliente(c: Cliente) {
+    setClienteId(c.id)
+    setBuscaCliente('')
+  }
+
+  function abrirNovoCliente() {
+    setNovoClienteForm({ nome: buscaCliente, telefone: '' })
+    setErroCliente('')
+    setShowNovoCliente(true)
+  }
+
+  async function salvarNovoCliente() {
+    if (!novoClienteForm.nome.trim() || !novoClienteForm.telefone.trim()) {
+      setErroCliente('Nome e telefone são obrigatórios.'); return
+    }
+    setSavingCliente(true); setErroCliente('')
+    const { data, error: err } = await supabase.from('clientes')
+      .insert({ nome: novoClienteForm.nome.trim(), telefone: novoClienteForm.telefone.trim() })
+      .select('*').single()
+    setSavingCliente(false)
+    if (err) { setErroCliente(err.message); return }
+    const novoCliente = data as Cliente
+    setClientes(prev => [...prev, novoCliente].sort((a, b) => a.nome.localeCompare(b.nome)))
+    setClienteId(novoCliente.id)
+    setBuscaCliente('')
+    setShowNovoCliente(false)
   }
 
   // Produto com tamanho cadastrado pede pra escolher qual antes de entrar na lista.
@@ -187,6 +225,7 @@ export default function Condicionais() {
   const modalNovoRef = useModalKeyboard(showNovo, () => { setShowNovo(false); resetNovo() }, salvarNovo)
   const modalFecharRef = useModalKeyboard(!!condFechar, () => setCondFechar(null), confirmarFechar)
   const modalTamanhoRef = useModalKeyboard(!!tamanhoPicker, () => setTamanhoPicker(null))
+  const modalNovoClienteRef = useModalKeyboard(showNovoCliente, () => setShowNovoCliente(false), salvarNovoCliente)
 
   return (
     <div className="page">
@@ -310,10 +349,70 @@ export default function Condicionais() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div className="field">
                   <label className="label">Cliente *</label>
-                  <select className="input" value={clienteId} onChange={e => setClienteId(e.target.value)}>
-                    <option value="">Selecionar...</option>
-                    {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                  </select>
+                  {clienteId ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 14px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                      <span style={{ flex: 1, fontSize: '13px', color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {clientes.find(c => c.id === clienteId)?.nome}
+                      </span>
+                      <button onClick={() => setClienteId('')} style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', padding: '2px', display: 'flex', flexShrink: 0 }}>
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 14px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                        <Search size={13} style={{ color: '#444', flexShrink: 0 }} />
+                        <input
+                          className="input-bare"
+                          style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', fontSize: '13px', color: '#FFFFFF', fontFamily: 'inherit' }}
+                          placeholder="Nome ou telefone do cliente..."
+                          value={buscaCliente}
+                          onChange={e => setBuscaCliente(e.target.value)}
+                          autoComplete="off"
+                        />
+                      </div>
+                      {buscaCliente ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', marginTop: '6px' }}>
+                          {clientesFiltrados.slice(0, 6).map(c => (
+                            <button
+                              key={c.id}
+                              onClick={() => selecionarCliente(c)}
+                              style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
+                                width: '100%', padding: '8px 10px', borderRadius: '6px', border: 'none', background: 'transparent',
+                                color: '#FFFFFF', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                            >
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</span>
+                              <span style={{ fontSize: '11px', color: '#555', flexShrink: 0 }}>{c.telefone}</span>
+                            </button>
+                          ))}
+                          <button
+                            onClick={abrirNovoCliente}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '6px',
+                              width: '100%', padding: '8px 10px', borderRadius: '6px', border: 'none', background: 'transparent',
+                              color: '#A3A3A3', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <Plus size={12} /> Cadastrar "{buscaCliente}" como novo cliente
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={abrirNovoCliente}
+                          className="btn btn-ghost btn-sm"
+                          style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px', width: 'fit-content' }}
+                        >
+                          <Plus size={11} /> Cadastrar novo cliente
+                        </button>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 <div className="field">
@@ -433,6 +532,47 @@ export default function Condicionais() {
                   </button>
                   <button className="btn btn-primary" style={{ flex: 1 }} onClick={salvarNovo} disabled={saving}>
                     {saving ? 'Salvando...' : <>Registrar Saída <span className="shortcut-hint">(F10)</span></>}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal: Novo Cliente (cadastro rápido) */}
+      <AnimatePresence>
+        {showNovoCliente && (
+          <motion.div
+            style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <motion.div
+              ref={modalNovoClienteRef}
+              className="card"
+              style={{ width: '100%', maxWidth: '360px', padding: '24px' }}
+              initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 16 }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '18px' }}>
+                <h2 style={{ fontSize: '16px', color: '#FFFFFF' }}>Novo Cliente</h2>
+                <button className="btn btn-icon" onClick={() => setShowNovoCliente(false)}><X size={14} /></button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div className="field">
+                  <label className="label">Nome *</label>
+                  <input className="input" value={novoClienteForm.nome} onChange={e => setNovoClienteForm(f => ({ ...f, nome: e.target.value }))} />
+                </div>
+                <div className="field">
+                  <label className="label">Telefone *</label>
+                  <input className="input" placeholder="(00) 00000-0000" value={novoClienteForm.telefone} onChange={e => setNovoClienteForm(f => ({ ...f, telefone: e.target.value }))} />
+                </div>
+                {erroCliente && <p style={{ fontSize: '12px', color: '#666' }}>{erroCliente}</p>}
+                <div className="modal-actions" style={{ display: 'flex', gap: '10px' }}>
+                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowNovoCliente(false)}>
+                    Cancelar <span className="shortcut-hint">(Esc)</span>
+                  </button>
+                  <button className="btn btn-primary" style={{ flex: 1 }} onClick={salvarNovoCliente} disabled={savingCliente}>
+                    {savingCliente ? 'Salvando...' : <>Cadastrar <span className="shortcut-hint">(F10)</span></>}
                   </button>
                 </div>
               </div>

@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { formatCurrency } from '../lib/utils'
 import ScannerCamera from '../components/ScannerCamera'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
-import type { ItemComanda, PagamentoMetodo, Produto, Profissional } from '../types'
+import type { Cliente, ItemComanda, PagamentoMetodo, Produto, Profissional } from '../types'
 
 const PAGAMENTOS: { id: PagamentoMetodo; label: string }[] = [
   { id: 'pix',      label: 'Pix'            },
@@ -23,7 +23,13 @@ export default function Vendas() {
   const [profissionalId, setProfissionalId] = useState('')
 
   const [cart, setCart]           = useState<ItemComanda[]>([])
-  const [clienteNome, setClienteNome] = useState('')
+  const [clientes, setClientes] = useState<Cliente[]>([])
+  const [clienteId, setClienteId] = useState('')
+  const [clienteBusca, setClienteBusca] = useState('')
+  const [showNovoCliente, setShowNovoCliente] = useState(false)
+  const [novoClienteForm, setNovoClienteForm] = useState({ nome: '', telefone: '' })
+  const [savingCliente, setSavingCliente] = useState(false)
+  const [erroCliente, setErroCliente] = useState('')
   const [pagamento, setPagamento] = useState<PagamentoMetodo>('pix')
   const [showPayModal, setShowPayModal] = useState(false)
   const [done, setDone]         = useState(false)
@@ -52,7 +58,48 @@ export default function Vendas() {
 
     supabase.from('profissionais').select('*').eq('ativo', true).order('nome')
       .then(({ data }) => { if (data) setProfissionais(data as Profissional[]) })
+
+    supabase.from('clientes').select('*').eq('ativo', true).order('nome')
+      .then(({ data }) => { if (data) setClientes(data as Cliente[]) })
   }, [])
+
+  const clientesFiltrados = useMemo(() =>
+    clienteBusca ? clientes.filter(c => c.nome.toLowerCase().includes(clienteBusca.toLowerCase()) || c.telefone.includes(clienteBusca)) : [],
+    [clientes, clienteBusca]
+  )
+
+  function selecionarCliente(c: Cliente) {
+    setClienteId(c.id)
+    setClienteBusca('')
+  }
+
+  function limparCliente() {
+    setClienteId('')
+    setClienteBusca('')
+  }
+
+  function abrirNovoCliente() {
+    setNovoClienteForm({ nome: clienteBusca, telefone: '' })
+    setErroCliente('')
+    setShowNovoCliente(true)
+  }
+
+  async function salvarNovoCliente() {
+    if (!novoClienteForm.nome.trim() || !novoClienteForm.telefone.trim()) {
+      setErroCliente('Nome e telefone são obrigatórios.'); return
+    }
+    setSavingCliente(true); setErroCliente('')
+    const { data, error: err } = await supabase.from('clientes')
+      .insert({ nome: novoClienteForm.nome.trim(), telefone: novoClienteForm.telefone.trim() })
+      .select('*').single()
+    setSavingCliente(false)
+    if (err) { setErroCliente(err.message); return }
+    const novoCliente = data as Cliente
+    setClientes(prev => [...prev, novoCliente].sort((a, b) => a.nome.localeCompare(b.nome)))
+    setClienteId(novoCliente.id)
+    setClienteBusca('')
+    setShowNovoCliente(false)
+  }
 
   const produtosFiltrados = useMemo(() =>
     produtos.filter(p =>
@@ -119,9 +166,10 @@ export default function Vendas() {
 
   async function finalizarVenda() {
     setSaving(true); setError('')
+    const clienteSelecionado = clientes.find(c => c.id === clienteId)
     const { error: err } = await supabase.rpc('finalizar_venda', {
-      p_cliente_nome: clienteNome || null,
-      p_cliente_id: null,
+      p_cliente_nome: clienteSelecionado?.nome ?? (clienteBusca || null),
+      p_cliente_id: clienteId || null,
       p_forma_pagamento: pagamento,
       p_itens: cart.map(i => ({
         tipo: i.tipo,
@@ -139,7 +187,7 @@ export default function Vendas() {
 
     setDone(true)
     setCart([])
-    setClienteNome('')
+    limparCliente()
     setShowPayModal(false)
     setTimeout(() => setDone(false), 2500)
     carregarProdutos()
@@ -147,6 +195,7 @@ export default function Vendas() {
 
   const modalRef = useModalKeyboard(showPayModal, () => setShowPayModal(false), finalizarVenda)
   const modalTamanhoRef = useModalKeyboard(!!tamanhoPicker, () => setTamanhoPicker(null))
+  const modalNovoClienteRef = useModalKeyboard(showNovoCliente, () => setShowNovoCliente(false), salvarNovoCliente)
 
   return (
     <div className="page pdv-layout" style={{ display: 'flex', gap: '24px', height: 'calc(100vh - 64px)', paddingBottom: '0', overflow: 'hidden' }}>
@@ -277,13 +326,64 @@ export default function Vendas() {
               </span>
             )}
           </div>
-          <input
-            className="input"
-            style={{ marginTop: '12px', fontSize: '13px' }}
-            placeholder="Nome do cliente (opcional)"
-            value={clienteNome}
-            onChange={e => setClienteNome(e.target.value)}
-          />
+          {clienteId ? (
+            <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 14px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+              <span style={{ flex: 1, fontSize: '13px', color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {clientes.find(c => c.id === clienteId)?.nome}
+              </span>
+              <button onClick={limparCliente} style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', padding: '2px', display: 'flex', flexShrink: 0 }}>
+                <X size={13} />
+              </button>
+            </div>
+          ) : (
+            <div style={{ position: 'relative', marginTop: '12px' }}>
+              <input
+                className="input input-bare"
+                style={{ fontSize: '13px' }}
+                placeholder="Cliente (opcional)"
+                value={clienteBusca}
+                onChange={e => setClienteBusca(e.target.value)}
+                autoComplete="off"
+              />
+              {clienteBusca && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 10,
+                  display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '180px', overflowY: 'auto',
+                  background: '#1F1F1F', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                }}>
+                  {clientesFiltrados.slice(0, 6).map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => selecionarCliente(c)}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
+                        width: '100%', padding: '7px 9px', borderRadius: '6px', border: 'none', background: 'transparent',
+                        color: '#FFFFFF', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</span>
+                      <span style={{ fontSize: '10px', color: '#555', flexShrink: 0 }}>{c.telefone}</span>
+                    </button>
+                  ))}
+                  <button
+                    onClick={abrirNovoCliente}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      width: '100%', padding: '7px 9px', borderRadius: '6px', border: 'none', background: 'transparent',
+                      color: '#A3A3A3', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <Plus size={11} /> Cadastrar "{clienteBusca}" como cliente
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           {profissionais.length > 0 && (
             <select
               className="input"
@@ -360,6 +460,47 @@ export default function Vendas() {
           </button>
         </div>
       </div>
+
+      {/* Modal: Novo Cliente (cadastro rápido) */}
+      <AnimatePresence>
+        {showNovoCliente && (
+          <motion.div
+            style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <motion.div
+              ref={modalNovoClienteRef}
+              className="card"
+              style={{ width: '100%', maxWidth: '360px', padding: '24px' }}
+              initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 16 }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '18px' }}>
+                <h2 style={{ fontSize: '16px', color: '#FFFFFF' }}>Novo Cliente</h2>
+                <button className="btn btn-icon" onClick={() => setShowNovoCliente(false)}><X size={14} /></button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div className="field">
+                  <label className="label">Nome *</label>
+                  <input className="input" value={novoClienteForm.nome} onChange={e => setNovoClienteForm(f => ({ ...f, nome: e.target.value }))} />
+                </div>
+                <div className="field">
+                  <label className="label">Telefone *</label>
+                  <input className="input" placeholder="(00) 00000-0000" value={novoClienteForm.telefone} onChange={e => setNovoClienteForm(f => ({ ...f, telefone: e.target.value }))} />
+                </div>
+                {erroCliente && <p style={{ fontSize: '12px', color: '#666' }}>{erroCliente}</p>}
+                <div className="modal-actions" style={{ display: 'flex', gap: '10px' }}>
+                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowNovoCliente(false)}>
+                    Cancelar <span className="shortcut-hint">(Esc)</span>
+                  </button>
+                  <button className="btn btn-primary" style={{ flex: 1 }} onClick={salvarNovoCliente} disabled={savingCliente}>
+                    {savingCliente ? 'Salvando...' : <>Cadastrar <span className="shortcut-hint">(F10)</span></>}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Modal: escolher tamanho */}
       <AnimatePresence>
