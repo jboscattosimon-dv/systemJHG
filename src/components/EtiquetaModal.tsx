@@ -243,11 +243,11 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado, permitir
                     className="etiqueta-fisica"
                     style={{
                       width: `${layout.largura}mm`, height: `${layout.altura}mm`,
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                      overflow: 'hidden', padding: '0.3mm', boxSizing: 'border-box', textAlign: 'center',
+                      display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center',
+                      overflow: 'hidden', padding: '0.3mm 0.3mm 0.3mm 0.8mm', boxSizing: 'border-box', textAlign: 'left',
                     }}
                   >
-                    <p style={{ fontSize: '5.5px', fontWeight: 600, color: '#111', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>
+                    <p style={{ fontSize: '7px', fontWeight: 600, color: '#111', lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>
                       {c.produto.nome}{c.tamanho ? ` — ${c.tamanho}` : ''}
                     </p>
                     <p style={{ fontSize: '6.5px', fontWeight: 700, color: '#111', lineHeight: 1.1 }}>
