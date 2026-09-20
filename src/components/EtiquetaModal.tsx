@@ -22,6 +22,27 @@ const LAYOUT_PADRAO = {
 interface Copia {
   chave: string
   produto: Produto
+  tamanho?: string
+}
+
+// Chave da quantidade: uma por produto (sem tamanho) ou uma por
+// combinação produto+tamanho (produto com estoque por tamanho).
+function chaveQtd(produtoId: string, tamanho?: string) {
+  return `${produtoId}::${tamanho ?? ''}`
+}
+
+// Etiqueta por padrão = quantidade em estoque (por tamanho, quando o
+// produto tiver; senão o total do produto) — editável depois.
+function quantidadesPadrao(produtos: Produto[]): Record<string, number> {
+  const padrao: Record<string, number> = {}
+  produtos.forEach(p => {
+    if (p.tamanhos && p.tamanhos.length > 0) {
+      p.tamanhos.forEach(t => { padrao[chaveQtd(p.id, t.tamanho)] = t.quantidade })
+    } else {
+      padrao[chaveQtd(p.id)] = Math.max(1, p.estoque_atual)
+    }
+  })
+  return padrao
 }
 
 export default function EtiquetaModal({ produtos, onClose, onSkuGerado }: {
@@ -30,9 +51,7 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado }: {
   onSkuGerado: (id: string, sku: string) => void
 }) {
   const [codigos, setCodigos] = useState<Record<string, string>>({})
-  const [quantidades, setQuantidades] = useState<Record<string, number>>(
-    () => Object.fromEntries(produtos.map(p => [p.id, 1]))
-  )
+  const [quantidades, setQuantidades] = useState<Record<string, number>>(() => quantidadesPadrao(produtos))
   const [layout, setLayout] = useState(LAYOUT_PADRAO)
   const refs = useRef<Record<string, SVGSVGElement | null>>({})
 
@@ -50,9 +69,20 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [produtos.map(p => p.id).join(',')])
 
-  const copias: Copia[] = produtos.flatMap(p =>
-    Array.from({ length: quantidades[p.id] ?? 1 }, (_, i) => ({ chave: `${p.id}-${i}`, produto: p }))
-  )
+  function setQtd(produtoId: string, tamanho: string | undefined, valor: number) {
+    setQuantidades(q => ({ ...q, [chaveQtd(produtoId, tamanho)]: Math.max(0, valor) }))
+  }
+
+  const copias: Copia[] = produtos.flatMap(p => {
+    if (p.tamanhos && p.tamanhos.length > 0) {
+      return p.tamanhos.flatMap(t => {
+        const qtd = quantidades[chaveQtd(p.id, t.tamanho)] ?? 0
+        return Array.from({ length: qtd }, (_, i) => ({ chave: `${p.id}-${t.tamanho}-${i}`, produto: p, tamanho: t.tamanho }))
+      })
+    }
+    const qtd = quantidades[chaveQtd(p.id)] ?? 0
+    return Array.from({ length: qtd }, (_, i) => ({ chave: `${p.id}-${i}`, produto: p }))
+  })
   const porPagina = Math.max(1, layout.colunas * layout.linhas)
   const paginas: Copia[][] = []
   for (let i = 0; i < copias.length; i += porPagina) paginas.push(copias.slice(i, i + porPagina))
@@ -107,28 +137,50 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado }: {
       <EtiquetaEstilos />
       <motion.div className="card no-print-hide" style={{ width: '100%', maxWidth: '640px', padding: '28px', maxHeight: '85vh', overflowY: 'auto' }}
         initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
           <h2 style={{ fontSize: '18px', color: '#FFFFFF' }}>
             {multiplo ? `Etiquetas — ${produtos.length} produtos` : `Etiqueta — ${produtos[0]?.nome}`}
           </h2>
           <button className="btn btn-icon" onClick={onClose}><X size={14} /></button>
         </div>
+        <p style={{ fontSize: '12px', color: '#555', marginBottom: '16px' }}>
+          Quantidade de cópias já vem preenchida com o estoque (por tamanho, quando tiver) — ajuste se quiser imprimir menos.
+        </p>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-          {produtos.map(p => (
-            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 0', borderBottom: '1px solid #1F1F1F' }}>
-              <span style={{ flex: 1, fontSize: '13px', color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome}</span>
-              <label style={{ fontSize: '11px', color: '#666', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                Cópias
-                <input
-                  className="input" type="number" min={1} max={200}
-                  style={{ width: '64px' }}
-                  value={quantidades[p.id] ?? 1}
-                  onChange={e => setQuantidades(q => ({ ...q, [p.id]: Math.max(1, Number(e.target.value)) }))}
-                />
-              </label>
-            </div>
-          ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+          {produtos.map(p => {
+            const temTamanhos = p.tamanhos && p.tamanhos.length > 0
+            return (
+              <div key={p.id} style={{ padding: '8px 0', borderBottom: '1px solid #1F1F1F' }}>
+                <span style={{ fontSize: '13px', color: '#FFFFFF', display: 'block', marginBottom: temTamanhos ? '8px' : 0 }}>{p.nome}</span>
+                {!temTamanhos ? (
+                  <label style={{ fontSize: '11px', color: '#666', display: 'flex', alignItems: 'center', gap: '6px', width: 'fit-content' }}>
+                    Cópias
+                    <input
+                      className="input" type="number" min={0} max={999}
+                      style={{ width: '64px' }}
+                      value={quantidades[chaveQtd(p.id)] ?? 0}
+                      onChange={e => setQtd(p.id, undefined, Number(e.target.value))}
+                    />
+                  </label>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                    {p.tamanhos!.map(t => (
+                      <label key={t.tamanho} style={{ fontSize: '11px', color: '#666', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {t.tamanho}
+                        <input
+                          className="input" type="number" min={0} max={999}
+                          style={{ width: '56px' }}
+                          value={quantidades[chaveQtd(p.id, t.tamanho)] ?? 0}
+                          onChange={e => setQtd(p.id, t.tamanho, Number(e.target.value))}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
 
         <details style={{ marginBottom: '16px' }}>
@@ -179,7 +231,7 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado }: {
                     }}
                   >
                     <p style={{ fontSize: '6px', fontWeight: 600, color: '#111', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>
-                      {c.produto.nome}
+                      {c.produto.nome}{c.tamanho ? ` — ${c.tamanho}` : ''}
                     </p>
                     <p style={{ fontSize: '7px', fontWeight: 700, color: '#111', lineHeight: 1.2 }}>
                       {formatCurrency(c.produto.preco_venda)}
@@ -192,8 +244,8 @@ export default function EtiquetaModal({ produtos, onClose, onSkuGerado }: {
           </div>
         </div>
 
-        <button className="btn btn-primary btn-full" onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '16px' }}>
-          <Printer size={14} /> Imprimir {totalEtiquetas > 1 ? `(${totalEtiquetas})` : ''}
+        <button className="btn btn-primary btn-full" onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '16px' }} disabled={totalEtiquetas === 0}>
+          <Printer size={14} /> Imprimir {totalEtiquetas > 0 ? `(${totalEtiquetas})` : ''}
         </button>
       </motion.div>
     </motion.div>
