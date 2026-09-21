@@ -53,6 +53,8 @@ export default function Condicionais() {
   const [condFechar, setCondFechar] = useState<Condicional | null>(null)
   const [decisoes, setDecisoes] = useState<Record<string, Decisao>>({})
   const [pagamento, setPagamento] = useState<PagamentoMetodo>('pix')
+  const [descontoTipo, setDescontoTipo] = useState<'percentual' | 'valor'>('percentual')
+  const [descontoValorInput, setDescontoValorInput] = useState('')
 
   const carregar = useCallback(() => {
     setLoading(true)
@@ -218,6 +220,8 @@ export default function Condicionais() {
     setCondFechar(c)
     setDecisoes({})
     setPagamento('pix')
+    setDescontoTipo('percentual')
+    setDescontoValorInput('')
     setError('')
   }
 
@@ -240,6 +244,12 @@ export default function Condicionais() {
 
   const totalVendido = itensFechar.filter(i => decisoes[i.id] === 'vendido').reduce((s, i) => s + precoEfetivoFechar(i) * i.quantidade, 0)
 
+  // Desconto à vista sobre os itens vendidos (mesma regra do Vendas: nunca deixa o total negativo).
+  const valorDesconto = temVendido ? Math.min(totalVendido, Math.max(0,
+    descontoTipo === 'percentual' ? totalVendido * (Number(descontoValorInput) || 0) / 100 : (Number(descontoValorInput) || 0)
+  )) : 0
+  const totalVendidoComDesconto = totalVendido - valorDesconto
+
   async function confirmarFechar() {
     if (!condFechar || !todosDecididos) { setError('Decida cada item (vendido ou devolvido) antes de fechar.'); return }
     setSaving(true); setError('')
@@ -247,6 +257,7 @@ export default function Condicionais() {
       p_condicional_id: condFechar.id,
       p_decisoes: itensFechar.map(i => ({ item_id: i.id, status: decisoes[i.id] })),
       p_forma_pagamento: temVendido ? pagamento : null,
+      p_desconto: valorDesconto,
     })
     setSaving(false)
     if (err) { setError(err.message); return }
@@ -873,9 +884,43 @@ export default function Condicionais() {
                 </div>
               )}
 
+              {temVendido && (
+                <div className="field" style={{ marginBottom: '18px' }}>
+                  <label className="label">Desconto à vista (opcional)</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', border: '1px solid #2A2A2A', borderRadius: '8px', overflow: 'hidden', flexShrink: 0 }}>
+                      {(['percentual', 'valor'] as const).map(t => (
+                        <button
+                          key={t}
+                          onClick={() => setDescontoTipo(t)}
+                          style={{
+                            padding: '9px 12px', border: 'none', fontFamily: 'inherit', cursor: 'pointer',
+                            background: descontoTipo === t ? 'rgba(255,255,255,0.1)' : 'transparent',
+                            color: descontoTipo === t ? '#FFFFFF' : '#666', fontSize: '13px',
+                          }}
+                        >
+                          {t === 'percentual' ? '%' : 'R$'}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      className="input" type="number" min={0} step={0.01} placeholder="0"
+                      style={{ flex: 1 }}
+                      value={descontoValorInput}
+                      onChange={e => setDescontoValorInput(e.target.value)}
+                    />
+                  </div>
+                  {valorDesconto > 0 && (
+                    <p style={{ fontSize: '11px', color: '#555', marginTop: '6px' }}>
+                      Desconto de {formatCurrency(valorDesconto)} · total com desconto {formatCurrency(totalVendidoComDesconto)}.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', marginBottom: '18px' }}>
                 <span style={{ fontSize: '13px', color: '#A3A3A3' }}>Total a cobrar (vendidos)</span>
-                <span style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(totalVendido)}</span>
+                <span style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(totalVendidoComDesconto)}</span>
               </div>
 
               {error && <p style={{ fontSize: '12px', color: '#666', marginBottom: '12px' }}>{error}</p>}
