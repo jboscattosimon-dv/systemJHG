@@ -33,6 +33,8 @@ export default function Vendas() {
   const [erroCliente, setErroCliente] = useState('')
   const [pagamento, setPagamento] = useState<PagamentoMetodo>('pix')
   const [numeroParcelas, setNumeroParcelas] = useState(2)
+  const [parceladoTipo, setParceladoTipo] = useState<'dinheiro' | 'cartao'>('dinheiro')
+  const [taxasCartao, setTaxasCartao] = useState<Record<number, number>>({})
   const [showPayModal, setShowPayModal] = useState(false)
   const [done, setDone]         = useState(false)
   const [saving, setSaving]     = useState(false)
@@ -63,7 +65,19 @@ export default function Vendas() {
 
     supabase.from('clientes').select('*').eq('ativo', true).order('nome')
       .then(({ data }) => { if (data) setClientes(data as Cliente[]) })
+
+    supabase.from('taxas_cartao_parcelado').select('parcelas, taxa_percentual')
+      .then(({ data }) => {
+        if (!data) return
+        const next: Record<number, number> = {}
+        data.forEach(t => { next[t.parcelas] = Number(t.taxa_percentual) })
+        setTaxasCartao(next)
+      })
   }, [])
+
+  const parcelasComTaxaDisponiveis = Object.keys(taxasCartao).map(Number).sort((a, b) => a - b)
+  const taxaCartaoSelecionada = parceladoTipo === 'cartao' ? (taxasCartao[numeroParcelas] ?? 0) : 0
+  const totalComTaxaCartao = taxaCartaoSelecionada > 0 ? total / (1 - taxaCartaoSelecionada / 100) : total
 
   const clientesFiltrados = useMemo(() =>
     clienteBusca ? clientes.filter(c => c.nome.toLowerCase().includes(clienteBusca.toLowerCase()) || c.telefone.includes(clienteBusca)) : [],
@@ -171,6 +185,10 @@ export default function Vendas() {
       setError('Selecione um cliente cadastrado pra vender parcelado.')
       return
     }
+    if (pagamento === 'parcelado' && parceladoTipo === 'cartao' && !taxasCartao[numeroParcelas]) {
+      setError('Selecione uma quantidade de parcelas com taxa configurada.')
+      return
+    }
     setSaving(true); setError('')
     const clienteSelecionado = clientes.find(c => c.id === clienteId)
     const { error: err } = await supabase.rpc('finalizar_venda', {
@@ -187,6 +205,7 @@ export default function Vendas() {
         profissional_id: i.profissional_id ?? null,
       })),
       p_total_parcelas: pagamento === 'parcelado' ? numeroParcelas : 1,
+      p_taxa_cartao_percentual: taxaCartaoSelecionada,
     })
 
     setSaving(false)
@@ -196,6 +215,7 @@ export default function Vendas() {
     setCart([])
     limparCliente()
     setShowPayModal(false)
+    setParceladoTipo('dinheiro')
     setNumeroParcelas(2)
     setTimeout(() => setDone(false), 2500)
     carregarProdutos()
@@ -602,25 +622,77 @@ export default function Vendas() {
                       Selecione um cliente cadastrado (não só o nome) pra gerar as parcelas no contas a receber dele.
                     </p>
                   )}
-                  <label className="label">Número de parcelas</label>
-                  <input
-                    className="input" type="number" min={2} max={12}
-                    value={numeroParcelas}
-                    onChange={e => setNumeroParcelas(Math.min(12, Math.max(2, Number(e.target.value) || 2)))}
-                  />
-                  <p style={{ fontSize: '11px', color: '#555', marginTop: '6px' }}>
-                    {numeroParcelas}x de {formatCurrency(total / numeroParcelas)} · 1ª parcela em 30 dias, depois uma por mês.
-                  </p>
+
+                  <label className="label">Parcelado no</label>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                    {(['dinheiro', 'cartao'] as const).map(t => (
+                      <button
+                        key={t}
+                        onClick={() => setParceladoTipo(t)}
+                        style={{
+                          flex: 1, padding: '9px 12px', borderRadius: '8px', fontFamily: 'inherit',
+                          border: parceladoTipo === t ? '1px solid #FFFFFF' : '1px solid #2A2A2A',
+                          background: parceladoTipo === t ? 'rgba(255,255,255,0.07)' : 'transparent',
+                          color: parceladoTipo === t ? '#FFFFFF' : '#666',
+                          fontSize: '13px', cursor: 'pointer',
+                        }}
+                      >
+                        {t === 'dinheiro' ? 'Dinheiro (crediário)' : 'Cartão'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {parceladoTipo === 'cartao' ? (
+                    parcelasComTaxaDisponiveis.length === 0 ? (
+                      <p style={{ fontSize: '12px', color: '#A3A3A3' }}>
+                        Nenhuma taxa de cartão configurada ainda. Cadastre em Configurações → Taxas de cartão parcelado.
+                      </p>
+                    ) : (
+                      <>
+                        <label className="label">Parcelas (com taxa da maquininha)</label>
+                        <select
+                          className="input" value={numeroParcelas}
+                          onChange={e => setNumeroParcelas(Number(e.target.value))}
+                        >
+                          {parcelasComTaxaDisponiveis.map(p => (
+                            <option key={p} value={p}>{p}x ({taxasCartao[p]}%)</option>
+                          ))}
+                        </select>
+                        <p style={{ fontSize: '11px', color: '#555', marginTop: '6px' }}>
+                          Cliente paga {formatCurrency(totalComTaxaCartao)} em {numeroParcelas}x de {formatCurrency(totalComTaxaCartao / numeroParcelas)} (taxa repassada) · loja recebe {formatCurrency(total)}.
+                        </p>
+                      </>
+                    )
+                  ) : (
+                    <>
+                      <label className="label">Número de parcelas</label>
+                      <input
+                        className="input" type="number" min={2} max={12}
+                        value={numeroParcelas}
+                        onChange={e => setNumeroParcelas(Math.min(12, Math.max(2, Number(e.target.value) || 2)))}
+                      />
+                      <p style={{ fontSize: '11px', color: '#555', marginTop: '6px' }}>
+                        {numeroParcelas}x de {formatCurrency(total / numeroParcelas)} · 1ª parcela em 30 dias, depois uma por mês.
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
 
               <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <span style={{ fontSize: '13px', color: '#A3A3A3' }}>Total a cobrar</span>
-                <span style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(total)}</span>
+                <span style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(taxaCartaoSelecionada > 0 ? totalComTaxaCartao : total)}</span>
               </div>
               {error && <p style={{ fontSize: '12px', color: '#666', marginBottom: '12px' }}>{error}</p>}
               <div className="modal-actions">
-                <button className="btn btn-primary btn-full" onClick={finalizarVenda} disabled={saving || (pagamento === 'parcelado' && !clienteId)}>
+                <button
+                  className="btn btn-primary btn-full" onClick={finalizarVenda}
+                  disabled={
+                    saving ||
+                    (pagamento === 'parcelado' && !clienteId) ||
+                    (pagamento === 'parcelado' && parceladoTipo === 'cartao' && !taxasCartao[numeroParcelas])
+                  }
+                >
                   {saving ? 'Processando...' : <>Confirmar Pagamento <span className="shortcut-hint">(F10)</span></>}
                 </button>
               </div>

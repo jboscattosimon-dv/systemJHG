@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, type KeyboardEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, X, Minus, Trash2, Search, Package, Check, RotateCcw, ScanLine } from 'lucide-react'
+import { Plus, X, Minus, Trash2, Search, Package, Check, RotateCcw, ScanLine, Info } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency, formatDate } from '../lib/utils'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
@@ -46,6 +46,8 @@ export default function Condicionais() {
 
   // Detalhes do condicional (clique no card/linha)
   const [condDetalhe, setCondDetalhe] = useState<Condicional | null>(null)
+  const [taxasCartao, setTaxasCartao] = useState<Record<number, number>>({})
+  const [mostrarParcelasCartao, setMostrarParcelasCartao] = useState(false)
 
   // Fechar condicional
   const [condFechar, setCondFechar] = useState<Condicional | null>(null)
@@ -70,7 +72,16 @@ export default function Condicionais() {
       .then(({ data }) => { if (data) setClientes(data as Cliente[]) })
     supabase.from('produtos').select('*, tamanhos:produto_tamanhos(*)').eq('ativo', true).order('nome')
       .then(({ data }) => { if (data) setProdutos(data as Produto[]) })
+    supabase.from('taxas_cartao_parcelado').select('parcelas, taxa_percentual')
+      .then(({ data }) => {
+        if (!data) return
+        const next: Record<number, number> = {}
+        data.forEach(t => { next[t.parcelas] = Number(t.taxa_percentual) })
+        setTaxasCartao(next)
+      })
   }, [carregar])
+
+  const parcelasCartaoOrdenadas = Object.keys(taxasCartao).map(Number).sort((a, b) => a - b)
 
   const filtrados = condicionais.filter(c => filtro === 'todos' ? true : c.status === filtro)
   const totalItem = (i: { quantidade: number; preco_unitario: number }) => i.quantidade * i.preco_unitario
@@ -195,6 +206,7 @@ export default function Condicionais() {
 
   function abrirDetalhe(c: Condicional) {
     setCondDetalhe(c)
+    setMostrarParcelasCartao(false)
   }
 
   function abrirFecharDoDetalhe(c: Condicional) {
@@ -424,9 +436,39 @@ export default function Condicionais() {
                   <span style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(totalCondicional(condDetalhe))}</span>
                 </div>
                 {totalCondicionalPrazo(condDetalhe) !== totalCondicional(condDetalhe) && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #262626' }}>
-                    <span style={{ fontSize: '12px', color: '#666' }}>Se fosse a prazo</span>
-                    <span style={{ fontSize: '14px', fontWeight: 600, color: '#A3A3A3' }}>{formatCurrency(totalCondicionalPrazo(condDetalhe))}</span>
+                  <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #262626' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '12px', color: '#666', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        Se fosse a prazo
+                        {parcelasCartaoOrdenadas.length > 0 && (
+                          <button
+                            onClick={() => setMostrarParcelasCartao(v => !v)}
+                            title="Ver parcelas no cartão"
+                            style={{ background: 'none', border: 'none', padding: 0, display: 'flex', color: mostrarParcelasCartao ? '#FFFFFF' : '#555', cursor: 'pointer' }}
+                          >
+                            <Info size={12} />
+                          </button>
+                        )}
+                      </span>
+                      <span style={{ fontSize: '14px', fontWeight: 600, color: '#A3A3A3' }}>{formatCurrency(totalCondicionalPrazo(condDetalhe))}</span>
+                    </div>
+                    {mostrarParcelasCartao && (
+                      <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #262626', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <p style={{ fontSize: '10px', color: '#555', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>
+                          Parcelado no cartão (taxa repassada)
+                        </p>
+                        {parcelasCartaoOrdenadas.map(p => {
+                          const taxa = taxasCartao[p]
+                          const totalComTaxa = totalCondicionalPrazo(condDetalhe) / (1 - taxa / 100)
+                          return (
+                            <div key={p} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: '11px', color: '#666' }}>{p}x ({taxa}%)</span>
+                              <span style={{ fontSize: '11px', color: '#A3A3A3' }}>{p}x de {formatCurrency(totalComTaxa / p)} · total {formatCurrency(totalComTaxa)}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

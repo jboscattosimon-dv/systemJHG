@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Save } from 'lucide-react'
+import { Save, CreditCard } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { usePerfil } from '../hooks/usePerfil'
 import type { Configuracoes as ConfigRow } from '../types'
+
+const PARCELAS_CARTAO = Array.from({ length: 11 }, (_, i) => i + 2) // 2x..12x
 
 export default function Configuracoes() {
   const { empresaId, loading: perfilLoading } = usePerfil()
@@ -13,11 +15,37 @@ export default function Configuracoes() {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
+  const [taxasCartao, setTaxasCartao] = useState<Record<number, string>>({})
+  const [savingTaxas, setSavingTaxas] = useState(false)
+  const [erroTaxas, setErroTaxas] = useState('')
+  const [taxasSalvas, setTaxasSalvas] = useState(false)
+
   useEffect(() => {
     if (!empresaId) { setLoading(false); return }
     supabase.from('configuracoes').select('*').eq('empresa_id', empresaId).single()
       .then(({ data }) => { if (data) setForm(data as ConfigRow); setLoading(false) })
+    supabase.from('taxas_cartao_parcelado').select('parcelas, taxa_percentual').eq('empresa_id', empresaId)
+      .then(({ data }) => {
+        if (!data) return
+        const next: Record<number, string> = {}
+        data.forEach(t => { next[t.parcelas] = String(t.taxa_percentual) })
+        setTaxasCartao(next)
+      })
   }, [empresaId])
+
+  async function salvarTaxasCartao() {
+    if (!empresaId) return
+    setSavingTaxas(true); setErroTaxas(''); setTaxasSalvas(false)
+    const linhas = PARCELAS_CARTAO
+      .filter(p => taxasCartao[p] !== undefined && taxasCartao[p] !== '')
+      .map(p => ({ empresa_id: empresaId, parcelas: p, taxa_percentual: Number(taxasCartao[p]) }))
+    const { error: err } = await supabase.from('taxas_cartao_parcelado')
+      .upsert(linhas, { onConflict: 'empresa_id,parcelas' })
+    setSavingTaxas(false)
+    if (err) { setErroTaxas(err.message); return }
+    setTaxasSalvas(true)
+    setTimeout(() => setTaxasSalvas(false), 2500)
+  }
 
   async function handleSave() {
     if (!empresaId) return
@@ -117,6 +145,35 @@ export default function Configuracoes() {
       <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <Save size={14} /> {saving ? 'Salvando...' : saved ? 'Salvo!' : 'Salvar'}
       </button>
+
+      <motion.div className="card" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} style={{ marginTop: '20px', marginBottom: '20px' }}>
+        <p style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <CreditCard size={14} style={{ color: '#555' }} /> Taxas de cartão parcelado
+        </p>
+        <p style={{ fontSize: '12px', color: '#555', marginBottom: '16px' }}>
+          Taxa % de cada quantidade de parcelas, igual mostra na maquininha/app do cartão. Ao vender parcelado no cartão, o valor cobrado do cliente sobe pra loja receber o valor cheio (valor líquido ÷ (1 − taxa%)). Deixe em branco a parcela que sua maquininha não oferece.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '10px', marginBottom: '16px' }}>
+          {PARCELAS_CARTAO.map(p => (
+            <div key={p}>
+              <label style={{ fontSize: '11px', color: '#666', display: 'block', marginBottom: '4px' }}>{p}x</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <input
+                  className="input" type="number" min={0} step={0.01} placeholder="0,00"
+                  style={{ fontSize: '13px' }}
+                  value={taxasCartao[p] ?? ''}
+                  onChange={e => setTaxasCartao(t => ({ ...t, [p]: e.target.value }))}
+                />
+                <span style={{ fontSize: '12px', color: '#555' }}>%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        {erroTaxas && <p style={{ fontSize: '12px', color: '#666', marginBottom: '12px' }}>{erroTaxas}</p>}
+        <button className="btn btn-secondary" onClick={salvarTaxasCartao} disabled={savingTaxas} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Save size={14} /> {savingTaxas ? 'Salvando...' : taxasSalvas ? 'Salvo!' : 'Salvar taxas'}
+        </button>
+      </motion.div>
     </div>
   )
 }
