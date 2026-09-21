@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import type { HeaderBuscaContexto } from '../../hooks/useHeaderBusca'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -47,9 +47,16 @@ export default function AppLayout() {
   // só aparece lá, pra não parecer que busca em qualquer tela sem fazer nada.
   const buscaAtiva = location.pathname === '/produtos'
 
+  const mainRef = useRef<HTMLElement>(null)
+
   useEffect(() => {
     if (window.innerWidth < 768) setSidebarHidden(true)
     setHeaderBusca('')
+    // Sem isso, a área de conteúdo mantém o scroll da tela anterior ao
+    // trocar de rota (o React Router não reseta scroll sozinho numa SPA)
+    // — dava a impressão de a página abrir "no meio", exigindo rolar pra
+    // cima pra ver o início.
+    mainRef.current?.scrollTo(0, 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname])
 
@@ -195,6 +202,7 @@ export default function AppLayout() {
         <AnimatePresence mode="wait">
           <motion.main
             key={location.pathname}
+            ref={mainRef}
             style={{ flex: 1, overflowY: 'auto' }}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
