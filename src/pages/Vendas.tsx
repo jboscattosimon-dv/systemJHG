@@ -35,6 +35,8 @@ export default function Vendas() {
   const [numeroParcelas, setNumeroParcelas] = useState(2)
   const [parceladoTipo, setParceladoTipo] = useState<'dinheiro' | 'cartao'>('dinheiro')
   const [taxasCartao, setTaxasCartao] = useState<Record<number, number>>({})
+  const [descontoTipo, setDescontoTipo] = useState<'percentual' | 'valor'>('percentual')
+  const [descontoValorInput, setDescontoValorInput] = useState('')
   const [showPayModal, setShowPayModal] = useState(false)
   const [done, setDone]         = useState(false)
   const [saving, setSaving]     = useState(false)
@@ -76,13 +78,22 @@ export default function Vendas() {
   }, [])
 
   const parcelasComTaxaDisponiveis = Object.keys(taxasCartao).map(Number).sort((a, b) => a - b)
-  // Repasse de taxa: no crédito à vista usa a taxa do 1x; no parcelado
-  // no cartão, a taxa da quantidade de parcelas escolhida.
+
+  // Desconto à vista: não vale pra parcelado (crediário/cartão parcelado).
+  const valorDesconto = pagamento === 'parcelado' ? 0 : Math.min(total, Math.max(0,
+    descontoTipo === 'percentual' ? total * (Number(descontoValorInput) || 0) / 100 : (Number(descontoValorInput) || 0)
+  ))
+  const totalComDesconto = total - valorDesconto
+
+  // Repasse de taxa: no crédito à vista usa a taxa do 1x (sobre o valor
+  // já com desconto); no parcelado no cartão, a taxa da quantidade de
+  // parcelas escolhida (sem desconto).
   const taxaCartaoSelecionada =
     pagamento === 'credito' ? (taxasCartao[1] ?? 0)
     : (pagamento === 'parcelado' && parceladoTipo === 'cartao') ? (taxasCartao[numeroParcelas] ?? 0)
     : 0
-  const totalComTaxaCartao = taxaCartaoSelecionada > 0 ? total / (1 - taxaCartaoSelecionada / 100) : total
+  const baseParaTaxaCartao = pagamento === 'parcelado' ? total : totalComDesconto
+  const totalComTaxaCartao = taxaCartaoSelecionada > 0 ? baseParaTaxaCartao / (1 - taxaCartaoSelecionada / 100) : baseParaTaxaCartao
 
   const clientesFiltrados = useMemo(() =>
     clienteBusca ? clientes.filter(c => c.nome.toLowerCase().includes(clienteBusca.toLowerCase()) || c.telefone.includes(clienteBusca)) : [],
@@ -211,6 +222,7 @@ export default function Vendas() {
       })),
       p_total_parcelas: pagamento === 'parcelado' ? numeroParcelas : 1,
       p_taxa_cartao_percentual: taxaCartaoSelecionada,
+      p_desconto: valorDesconto,
     })
 
     setSaving(false)
@@ -222,6 +234,7 @@ export default function Vendas() {
     setShowPayModal(false)
     setParceladoTipo('dinheiro')
     setNumeroParcelas(2)
+    setDescontoValorInput('')
     setTimeout(() => setDone(false), 2500)
     carregarProdutos()
   }
@@ -627,7 +640,7 @@ export default function Vendas() {
 
               {pagamento === 'credito' && taxaCartaoSelecionada > 0 && (
                 <p style={{ fontSize: '11px', color: '#555', marginTop: '-16px', marginBottom: '20px' }}>
-                  Cliente paga {formatCurrency(totalComTaxaCartao)} (taxa repassada) · loja recebe {formatCurrency(total)}.
+                  Cliente paga {formatCurrency(totalComTaxaCartao)} (taxa repassada) · loja recebe {formatCurrency(totalComDesconto)}.
                 </p>
               )}
 
@@ -695,9 +708,43 @@ export default function Vendas() {
                 </div>
               )}
 
+              {pagamento !== 'parcelado' && (
+                <div style={{ marginBottom: '20px' }}>
+                  <label className="label">Desconto à vista (opcional)</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', border: '1px solid #2A2A2A', borderRadius: '8px', overflow: 'hidden', flexShrink: 0 }}>
+                      {(['percentual', 'valor'] as const).map(t => (
+                        <button
+                          key={t}
+                          onClick={() => setDescontoTipo(t)}
+                          style={{
+                            padding: '9px 12px', border: 'none', fontFamily: 'inherit', cursor: 'pointer',
+                            background: descontoTipo === t ? 'rgba(255,255,255,0.1)' : 'transparent',
+                            color: descontoTipo === t ? '#FFFFFF' : '#666', fontSize: '13px',
+                          }}
+                        >
+                          {t === 'percentual' ? '%' : 'R$'}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      className="input" type="number" min={0} step={0.01} placeholder="0"
+                      style={{ flex: 1 }}
+                      value={descontoValorInput}
+                      onChange={e => setDescontoValorInput(e.target.value)}
+                    />
+                  </div>
+                  {valorDesconto > 0 && (
+                    <p style={{ fontSize: '11px', color: '#555', marginTop: '6px' }}>
+                      Desconto de {formatCurrency(valorDesconto)} · total com desconto {formatCurrency(totalComDesconto)}.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <span style={{ fontSize: '13px', color: '#A3A3A3' }}>Total a cobrar</span>
-                <span style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(taxaCartaoSelecionada > 0 ? totalComTaxaCartao : total)}</span>
+                <span style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(totalComTaxaCartao)}</span>
               </div>
               {error && <p style={{ fontSize: '12px', color: '#666', marginBottom: '12px' }}>{error}</p>}
               <div className="modal-actions">
