@@ -76,6 +76,14 @@ export default function Condicionais() {
   const totalItem = (i: { quantidade: number; preco_unitario: number }) => i.quantidade * i.preco_unitario
   const totalCondicional = (c: Condicional) => (c.itens ?? []).reduce((s, i) => s + totalItem(i), 0)
 
+  // Preço a prazo por peça (cadastrado no produto) — cai pro preço à vista
+  // quando o produto não tem preço a prazo cadastrado.
+  function precoPrazoItem(item: { produto_id: string; preco_unitario: number }): number {
+    const prod = produtos.find(p => p.id === item.produto_id)
+    return prod?.preco_venda_prazo ?? item.preco_unitario
+  }
+  const totalCondicionalPrazo = (c: Condicional) => (c.itens ?? []).reduce((s, i) => s + precoPrazoItem(i) * i.quantidade, 0)
+
   const produtosFiltrados = useMemo(() =>
     produtos.filter(p => p.nome.toLowerCase().includes(buscaProduto.toLowerCase())),
     [produtos, buscaProduto]
@@ -395,7 +403,10 @@ export default function Condicionais() {
                         {item.nome}{item.tamanho && <span style={{ color: '#777' }}> — {item.tamanho}</span>}
                       </p>
                       <p style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>
-                        {item.quantidade}x {formatCurrency(item.preco_unitario)}
+                        {item.quantidade}x {formatCurrency(item.preco_unitario)} à vista
+                        {precoPrazoItem(item) !== item.preco_unitario && (
+                          <span> · {formatCurrency(precoPrazoItem(item))} a prazo</span>
+                        )}
                       </p>
                     </div>
                     {condDetalhe.status === 'fechado' && (
@@ -407,9 +418,17 @@ export default function Condicionais() {
                 ))}
               </div>
 
-              <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', marginBottom: '18px' }}>
-                <span style={{ fontSize: '13px', color: '#A3A3A3' }}>Total levado</span>
-                <span style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(totalCondicional(condDetalhe))}</span>
+              <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', marginBottom: '18px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '13px', color: '#A3A3A3' }}>Total levado (à vista)</span>
+                  <span style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(totalCondicional(condDetalhe))}</span>
+                </div>
+                {totalCondicionalPrazo(condDetalhe) !== totalCondicional(condDetalhe) && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #262626' }}>
+                    <span style={{ fontSize: '12px', color: '#666' }}>Se fosse a prazo</span>
+                    <span style={{ fontSize: '14px', fontWeight: 600, color: '#A3A3A3' }}>{formatCurrency(totalCondicionalPrazo(condDetalhe))}</span>
+                  </div>
+                )}
               </div>
 
               <div className="modal-actions" style={{ display: 'flex', gap: '10px' }}>
