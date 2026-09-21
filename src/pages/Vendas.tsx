@@ -76,7 +76,12 @@ export default function Vendas() {
   }, [])
 
   const parcelasComTaxaDisponiveis = Object.keys(taxasCartao).map(Number).sort((a, b) => a - b)
-  const taxaCartaoSelecionada = parceladoTipo === 'cartao' ? (taxasCartao[numeroParcelas] ?? 0) : 0
+  // Repasse de taxa: no crédito à vista usa a taxa do 1x; no parcelado
+  // no cartão, a taxa da quantidade de parcelas escolhida.
+  const taxaCartaoSelecionada =
+    pagamento === 'credito' ? (taxasCartao[1] ?? 0)
+    : (pagamento === 'parcelado' && parceladoTipo === 'cartao') ? (taxasCartao[numeroParcelas] ?? 0)
+    : 0
   const totalComTaxaCartao = taxaCartaoSelecionada > 0 ? total / (1 - taxaCartaoSelecionada / 100) : total
 
   const clientesFiltrados = useMemo(() =>
@@ -609,11 +614,22 @@ export default function Vendas() {
                       transition: 'all 0.15s', fontFamily: 'inherit',
                     }}
                   >
-                    {p.label}
+                    <span>
+                      {p.label}
+                      {p.id === 'credito' && taxasCartao[1] > 0 && (
+                        <span style={{ fontSize: '11px', color: '#666', marginLeft: '6px' }}>({taxasCartao[1]}%)</span>
+                      )}
+                    </span>
                     {pagamento === p.id && <Check size={14} />}
                   </button>
                 ))}
               </div>
+
+              {pagamento === 'credito' && taxaCartaoSelecionada > 0 && (
+                <p style={{ fontSize: '11px', color: '#555', marginTop: '-16px', marginBottom: '20px' }}>
+                  Cliente paga {formatCurrency(totalComTaxaCartao)} (taxa repassada) · loja recebe {formatCurrency(total)}.
+                </p>
+              )}
 
               {pagamento === 'parcelado' && (
                 <div style={{ marginBottom: '20px' }}>
