@@ -295,57 +295,51 @@ export default function Vendas() {
           <p style={{ fontSize: '12px', color: '#666', marginTop: '-8px', marginBottom: '12px', flexShrink: 0 }}>{scanAviso}</p>
         )}
 
-        {/* Content area — catálogo de produtos */}
+        {/* Content area — catálogo de produtos (lista, igual ao Condicional) */}
         <div className="pdv-catalog-content" style={{ flex: 1, overflowY: 'auto', paddingBottom: '16px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '12px' }}>
+          <div className="card" style={{ padding: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {!search.trim() ? (
-              <div style={{ gridColumn: '1/-1', padding: '56px', textAlign: 'center', color: '#444', fontSize: '13px' }}>
+              <div style={{ padding: '56px', textAlign: 'center', color: '#444', fontSize: '13px' }}>
                 Busque um produto pelo nome ou código pra adicionar à venda.
               </div>
             ) : produtosFiltrados.length === 0 ? (
-              <div style={{ gridColumn: '1/-1', padding: '56px', textAlign: 'center', color: '#444', fontSize: '13px' }}>
+              <div style={{ padding: '56px', textAlign: 'center', color: '#444', fontSize: '13px' }}>
                 Nenhum produto encontrado.
               </div>
             ) : produtosFiltrados.map(p => {
               const baixo = p.estoque_atual <= p.estoque_minimo
               const temTamanhos = p.tamanhos && p.tamanhos.length > 0
               return (
-                <motion.button
+                <button
                   key={p.id}
                   onClick={() => addProduto(p)}
-                  className="card-sm"
-                  style={{ cursor: 'pointer', border: '1px solid #2A2A2A', textAlign: 'left', transition: 'all 0.15s', fontFamily: 'inherit', width: '100%' }}
-                  whileHover={{ borderColor: '#444', background: '#242424' }}
-                  whileTap={{ scale: 0.97 }}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+                    width: '100%', padding: '10px 14px', borderRadius: '8px', border: 'none', background: 'transparent',
+                    color: '#FFFFFF', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
-                    <Package size={11} style={{ color: '#555' }} />
-                    <span style={{ fontSize: '9px', color: '#555', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      Produto
-                    </span>
-                  </div>
-                  <p style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', marginBottom: '4px' }}>{p.nome}</p>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                    <Package size={13} style={{ color: '#555', flexShrink: 0 }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{p.nome}</span>
+                  </span>
                   {temTamanhos ? (
-                    <p style={{ fontSize: '11px', color: '#555', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                    <span style={{ display: 'flex', gap: '3px', flexShrink: 0 }}>
                       {p.tamanhos!.map(t => (
-                        <span key={t.tamanho} style={{
-                          padding: '1px 6px', borderRadius: '99px',
-                          background: t.quantidade > 0 ? 'rgba(255,255,255,0.06)' : 'transparent',
-                          border: '1px solid #2A2A2A', color: t.quantidade > 0 ? '#A3A3A3' : '#444',
-                        }}>
+                        <span key={t.tamanho} style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '99px', border: '1px solid #2A2A2A', color: t.quantidade > 0 ? '#A3A3A3' : '#444' }}>
                           {t.tamanho}:{t.quantidade}
                         </span>
                       ))}
-                    </p>
+                    </span>
                   ) : (
-                    <p style={{ fontSize: '11px', color: baixo ? '#A3A3A3' : '#555' }}>
-                      {p.estoque_atual} {p.unidade} em estoque
-                    </p>
+                    <span style={{ fontSize: '11px', color: baixo ? '#A3A3A3' : '#555', flexShrink: 0 }}>{p.estoque_atual} {p.unidade} em estoque</span>
                   )}
-                  <p style={{ fontSize: '16px', fontWeight: 700, color: '#FFFFFF', marginTop: '10px' }}>
+                  <span style={{ color: '#FFFFFF', fontWeight: 700, flexShrink: 0, minWidth: '70px', textAlign: 'right' }}>
                     {formatCurrency(p.preco_venda)}
-                  </p>
-                </motion.button>
+                  </span>
+                </button>
               )
             })}
           </div>
