@@ -459,7 +459,7 @@ export default function Condicionais() {
                         </p>
                         {parcelasCartaoOrdenadas.map(p => {
                           const taxa = taxasCartao[p]
-                          const totalComTaxa = totalCondicionalPrazo(condDetalhe) / (1 - taxa / 100)
+                          const totalComTaxa = totalCondicional(condDetalhe) / (1 - taxa / 100)
                           return (
                             <div key={p} style={{ display: 'flex', justifyContent: 'space-between' }}>
                               <span style={{ fontSize: '11px', color: '#666' }}>{p}x ({taxa}%)</span>
