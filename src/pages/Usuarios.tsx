@@ -365,11 +365,9 @@ export default function Usuarios() {
 
             <input type="checkbox" checked={u.ativo} onChange={e => salvar(u, 'ativo', e.target.checked)} />
             <span style={{ fontSize: '12px', color: '#444' }}>{formatDate(u.criado_em)}</span>
-            {u.papel === 'gerente' ? (
-              <button className="btn btn-secondary btn-sm" onClick={() => abrirPermissoes(u)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Shield size={12} /> Telas
-              </button>
-            ) : <span />}
+            <button className="btn btn-secondary btn-sm" onClick={() => abrirPermissoes(u)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Shield size={12} /> Telas
+            </button>
           </motion.div>
         ))}
       </div>
@@ -435,11 +433,9 @@ export default function Usuarios() {
                   <input type="checkbox" checked={u.ativo} onChange={e => salvar(u, 'ativo', e.target.checked)} />
                   Ativo
                 </label>
-                {u.papel === 'gerente' && (
-                  <button className="btn btn-secondary btn-sm" onClick={() => abrirPermissoes(u)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                    <Shield size={12} /> Permissões de tela
-                  </button>
-                )}
+                <button className="btn btn-secondary btn-sm" onClick={() => abrirPermissoes(u)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                  <Shield size={12} /> Permissões de tela
+                </button>
               </div>
             </motion.div>
           ))}

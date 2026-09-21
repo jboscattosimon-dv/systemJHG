@@ -186,11 +186,9 @@ export default function EmpresaDetalhe() {
             <span style={{ fontSize: '12px', color: '#A3A3A3' }}>{PAPEL_LABEL[u.papel]}</span>
             <span style={{ fontSize: '11px', color: u.ativo ? '#A3A3A3' : '#444' }}>{u.ativo ? 'Ativo' : 'Inativo'}</span>
             <span style={{ fontSize: '12px', color: '#444' }}>{formatDate(u.criado_em)}</span>
-            {u.papel === 'gerente' ? (
-              <button className="btn btn-secondary btn-sm" onClick={() => abrirPermissoes(u)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Shield size={12} /> Telas
-              </button>
-            ) : <span />}
+            <button className="btn btn-secondary btn-sm" onClick={() => abrirPermissoes(u)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Shield size={12} /> Telas
+            </button>
             <button
               className="btn btn-icon"
               title="Desvincular da loja"
