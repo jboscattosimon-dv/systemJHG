@@ -44,6 +44,9 @@ export default function Condicionais() {
   const [showScanner, setShowScanner] = useState(false)
   const [scanAviso, setScanAviso] = useState('')
 
+  // Detalhes do condicional (clique no card/linha)
+  const [condDetalhe, setCondDetalhe] = useState<Condicional | null>(null)
+
   // Fechar condicional
   const [condFechar, setCondFechar] = useState<Condicional | null>(null)
   const [decisoes, setDecisoes] = useState<Record<string, Decisao>>({})
@@ -182,6 +185,15 @@ export default function Condicionais() {
     carregar()
   }
 
+  function abrirDetalhe(c: Condicional) {
+    setCondDetalhe(c)
+  }
+
+  function abrirFecharDoDetalhe(c: Condicional) {
+    setCondDetalhe(null)
+    abrirFechar(c)
+  }
+
   function abrirFechar(c: Condicional) {
     setCondFechar(c)
     setDecisoes({})
@@ -226,6 +238,7 @@ export default function Condicionais() {
   const modalFecharRef = useModalKeyboard(!!condFechar, () => setCondFechar(null), confirmarFechar)
   const modalTamanhoRef = useModalKeyboard(!!tamanhoPicker, () => setTamanhoPicker(null))
   const modalNovoClienteRef = useModalKeyboard(showNovoCliente, () => setShowNovoCliente(false), salvarNovoCliente)
+  const modalDetalheRef = useModalKeyboard(!!condDetalhe, () => setCondDetalhe(null))
 
   return (
     <div className="page">
@@ -280,9 +293,10 @@ export default function Condicionais() {
             key={c.id}
             className="list-row"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
+            onClick={() => abrirDetalhe(c)}
             style={{
               display: 'grid', gridTemplateColumns: '1fr 100px 130px 110px 100px',
-              padding: '14px 24px', alignItems: 'center',
+              padding: '14px 24px', alignItems: 'center', cursor: 'pointer',
               borderBottom: i < filtrados.length - 1 ? '1px solid #1F1F1F' : 'none',
             }}
           >
@@ -296,7 +310,7 @@ export default function Condicionais() {
               {STATUS_LABEL[c.status]}
             </span>
             {c.status === 'aberto' ? (
-              <button className="btn btn-secondary btn-sm" onClick={() => abrirFechar(c)}>Fechar</button>
+              <button className="btn btn-secondary btn-sm" onClick={e => { e.stopPropagation(); abrirFechar(c) }}>Fechar</button>
             ) : <span />}
           </motion.div>
         ))}
@@ -310,6 +324,8 @@ export default function Condicionais() {
               key={c.id}
               className="card entity-card"
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+              onClick={() => abrirDetalhe(c)}
+              style={{ cursor: 'pointer' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
                 <div style={{ minWidth: 0 }}>
@@ -324,13 +340,92 @@ export default function Condicionais() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '16px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(totalCondicional(c))}</span>
                 {c.status === 'aberto' && (
-                  <button className="btn btn-secondary btn-sm" onClick={() => abrirFechar(c)}>Fechar</button>
+                  <button className="btn btn-secondary btn-sm" onClick={e => { e.stopPropagation(); abrirFechar(c) }}>Fechar</button>
                 )}
               </div>
             </motion.div>
           ))}
         </div>
       )}
+
+      {/* Modal: Detalhes do Condicional (clique no card/linha) */}
+      <AnimatePresence>
+        {condDetalhe && (
+          <motion.div
+            style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <motion.div ref={modalDetalheRef} className="card" style={{ width: '100%', maxWidth: '480px', padding: '28px', maxHeight: '85vh', overflowY: 'auto', overflowX: 'hidden' }}
+              initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                <div>
+                  <h2 style={{ fontSize: '18px', color: '#FFFFFF' }}>{condDetalhe.cliente?.nome ?? '—'}</h2>
+                  <p style={{ fontSize: '12px', color: '#555', marginTop: '2px' }}>{condDetalhe.cliente?.telefone}</p>
+                </div>
+                <button className="btn btn-icon" onClick={() => setCondDetalhe(null)}><X size={14} /></button>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '14px 0' }}>
+                <span className={condDetalhe.status === 'fechado' ? 'badge badge-done' : 'badge badge-pending'}>
+                  {STATUS_LABEL[condDetalhe.status]}
+                </span>
+                <span style={{ fontSize: '11px', color: '#555' }}>
+                  Saiu em {formatDate(condDetalhe.criado_em)}
+                  {condDetalhe.fechado_em && ` · Fechado em ${formatDate(condDetalhe.fechado_em)}`}
+                </span>
+              </div>
+
+              {condDetalhe.observacao && (
+                <p style={{ fontSize: '12px', color: '#A3A3A3', background: 'rgba(255,255,255,0.03)', border: '1px solid #252525', borderRadius: '8px', padding: '10px 12px', marginBottom: '14px' }}>
+                  {condDetalhe.observacao}
+                </p>
+              )}
+
+              <p style={{ fontSize: '10px', color: '#555', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>
+                Roupas levadas ({(condDetalhe.itens ?? []).length})
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '18px' }}>
+                {(condDetalhe.itens ?? []).map(item => (
+                  <div key={item.id} style={{
+                    display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px',
+                    borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid #252525',
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF' }}>
+                        {item.nome}{item.tamanho && <span style={{ color: '#777' }}> — {item.tamanho}</span>}
+                      </p>
+                      <p style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>
+                        {item.quantidade}x {formatCurrency(item.preco_unitario)}
+                      </p>
+                    </div>
+                    {condDetalhe.status === 'fechado' && (
+                      <span style={{ fontSize: '11px', color: item.status === 'vendido' ? '#A3A3A3' : '#666' }}>
+                        {item.status === 'vendido' ? 'Vendido' : item.status === 'devolvido' ? 'Devolvido' : 'Pendente'}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', marginBottom: '18px' }}>
+                <span style={{ fontSize: '13px', color: '#A3A3A3' }}>Total levado</span>
+                <span style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(totalCondicional(condDetalhe))}</span>
+              </div>
+
+              <div className="modal-actions" style={{ display: 'flex', gap: '10px' }}>
+                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setCondDetalhe(null)}>
+                  Voltar <span className="shortcut-hint">(Esc)</span>
+                </button>
+                {condDetalhe.status === 'aberto' && (
+                  <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => abrirFecharDoDetalhe(condDetalhe)}>
+                    Fechar Condicional
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Modal: Novo Condicional */}
       <AnimatePresence>

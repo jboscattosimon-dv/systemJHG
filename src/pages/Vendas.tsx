@@ -252,7 +252,11 @@ export default function Vendas() {
         {/* Content area — catálogo de produtos */}
         <div className="pdv-catalog-content" style={{ flex: 1, overflowY: 'auto', paddingBottom: '16px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '12px' }}>
-            {produtosFiltrados.length === 0 ? (
+            {!search.trim() ? (
+              <div style={{ gridColumn: '1/-1', padding: '56px', textAlign: 'center', color: '#444', fontSize: '13px' }}>
+                Busque um produto pelo nome ou código pra adicionar à venda.
+              </div>
+            ) : produtosFiltrados.length === 0 ? (
               <div style={{ gridColumn: '1/-1', padding: '56px', textAlign: 'center', color: '#444', fontSize: '13px' }}>
                 Nenhum produto encontrado.
               </div>
