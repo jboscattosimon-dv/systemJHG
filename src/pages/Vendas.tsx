@@ -8,10 +8,11 @@ import { useModalKeyboard } from '../hooks/useModalKeyboard'
 import type { Cliente, ItemComanda, PagamentoMetodo, Produto, Profissional } from '../types'
 
 const PAGAMENTOS: { id: PagamentoMetodo; label: string }[] = [
-  { id: 'pix',      label: 'Pix'            },
-  { id: 'credito',  label: 'Cartão Crédito' },
-  { id: 'debito',   label: 'Cartão Débito'  },
-  { id: 'dinheiro', label: 'Dinheiro'       },
+  { id: 'pix',       label: 'Pix'            },
+  { id: 'credito',   label: 'Cartão Crédito' },
+  { id: 'debito',    label: 'Cartão Débito'  },
+  { id: 'dinheiro',  label: 'Dinheiro'       },
+  { id: 'parcelado', label: 'Parcelado'      },
 ]
 
 function uid() { return Math.random().toString(36).slice(2) }
@@ -31,6 +32,7 @@ export default function Vendas() {
   const [savingCliente, setSavingCliente] = useState(false)
   const [erroCliente, setErroCliente] = useState('')
   const [pagamento, setPagamento] = useState<PagamentoMetodo>('pix')
+  const [numeroParcelas, setNumeroParcelas] = useState(2)
   const [showPayModal, setShowPayModal] = useState(false)
   const [done, setDone]         = useState(false)
   const [saving, setSaving]     = useState(false)
@@ -39,9 +41,9 @@ export default function Vendas() {
   const [scanAviso, setScanAviso] = useState('')
   const [tamanhoPicker, setTamanhoPicker] = useState<Produto | null>(null)
 
-  // No crédito, produto com preço a prazo cadastrado cobra esse valor em vez do preço à vista.
+  // No crédito ou parcelado, produto com preço a prazo cadastrado cobra esse valor em vez do preço à vista.
   function precoEfetivo(item: ItemComanda): number {
-    if (pagamento !== 'credito' || item.tipo !== 'produto') return item.preco_unitario
+    if ((pagamento !== 'credito' && pagamento !== 'parcelado') || item.tipo !== 'produto') return item.preco_unitario
     const prod = produtos.find(p => p.id === item.referencia_id)
     return prod?.preco_venda_prazo ?? item.preco_unitario
   }
@@ -165,6 +167,10 @@ export default function Vendas() {
   }
 
   async function finalizarVenda() {
+    if (pagamento === 'parcelado' && !clienteId) {
+      setError('Selecione um cliente cadastrado pra vender parcelado.')
+      return
+    }
     setSaving(true); setError('')
     const clienteSelecionado = clientes.find(c => c.id === clienteId)
     const { error: err } = await supabase.rpc('finalizar_venda', {
@@ -180,6 +186,7 @@ export default function Vendas() {
         preco_unitario: precoEfetivo(i),
         profissional_id: i.profissional_id ?? null,
       })),
+      p_total_parcelas: pagamento === 'parcelado' ? numeroParcelas : 1,
     })
 
     setSaving(false)
@@ -189,6 +196,7 @@ export default function Vendas() {
     setCart([])
     limparCliente()
     setShowPayModal(false)
+    setNumeroParcelas(2)
     setTimeout(() => setDone(false), 2500)
     carregarProdutos()
   }
@@ -586,13 +594,33 @@ export default function Vendas() {
                   </button>
                 ))}
               </div>
+
+              {pagamento === 'parcelado' && (
+                <div style={{ marginBottom: '20px' }}>
+                  {!clienteId && (
+                    <p style={{ fontSize: '12px', color: '#A3A3A3', marginBottom: '10px' }}>
+                      Selecione um cliente cadastrado (não só o nome) pra gerar as parcelas no contas a receber dele.
+                    </p>
+                  )}
+                  <label className="label">Número de parcelas</label>
+                  <input
+                    className="input" type="number" min={2} max={12}
+                    value={numeroParcelas}
+                    onChange={e => setNumeroParcelas(Math.min(12, Math.max(2, Number(e.target.value) || 2)))}
+                  />
+                  <p style={{ fontSize: '11px', color: '#555', marginTop: '6px' }}>
+                    {numeroParcelas}x de {formatCurrency(total / numeroParcelas)} · 1ª parcela em 30 dias, depois uma por mês.
+                  </p>
+                </div>
+              )}
+
               <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <span style={{ fontSize: '13px', color: '#A3A3A3' }}>Total a cobrar</span>
                 <span style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(total)}</span>
               </div>
               {error && <p style={{ fontSize: '12px', color: '#666', marginBottom: '12px' }}>{error}</p>}
               <div className="modal-actions">
-                <button className="btn btn-primary btn-full" onClick={finalizarVenda} disabled={saving}>
+                <button className="btn btn-primary btn-full" onClick={finalizarVenda} disabled={saving || (pagamento === 'parcelado' && !clienteId)}>
                   {saving ? 'Processando...' : <>Confirmar Pagamento <span className="shortcut-hint">(F10)</span></>}
                 </button>
               </div>
