@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, type ChangeEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, X, Package, Check, Tag, Pencil, Download, Upload, Trash2, FileSpreadsheet } from 'lucide-react'
+import { Plus, X, Package, Check, Tag, Pencil, Download, Upload, Trash2, FileSpreadsheet, ImagePlus } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { formatCurrency } from '../lib/utils'
 import EtiquetaModal from '../components/EtiquetaModal'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
 import { useHeaderBusca } from '../hooks/useHeaderBusca'
+import { usePerfil } from '../hooks/usePerfil'
 import type { Produto, ProdutoCategoria } from '../types'
 
 const CAT_LABEL: Record<ProdutoCategoria, string> = {
@@ -146,6 +147,7 @@ async function lerPlanilhaProdutos(arquivo: File): Promise<{ validas: LinhaImpor
 }
 
 export default function Produtos() {
+  const { empresaId } = usePerfil()
   const [produtos, setProdutos] = useState<Produto[]>([])
   const { headerBusca: busca } = useHeaderBusca()
   const [showProdModal, setShowProdModal] = useState(false)
@@ -153,9 +155,13 @@ export default function Produtos() {
   const [prodForm, setProdForm] = useState({
     nome: '', categoria: 'bebidas' as ProdutoCategoria, sku: '', unidade: 'un',
     preco_custo: '', preco_venda: '', preco_venda_prazo: '', estoque_atual: '', estoque_minimo: '', estoque_maximo: '',
-    comissao_percentual: '',
+    comissao_percentual: '', foto_url: '',
   })
   const [prodTamanhos, setProdTamanhos] = useState<{ tamanho: string; quantidade: string }[]>([])
+  const [fotoFile, setFotoFile] = useState<File | null>(null)
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null)
+  const [uploadingFoto, setUploadingFoto] = useState(false)
+  const fotoInputRef = useRef<HTMLInputElement>(null)
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -250,11 +256,40 @@ export default function Produtos() {
     }
   }
 
+  function handleFotoChange(e: ChangeEvent<HTMLInputElement>) {
+    const arquivo = e.target.files?.[0]
+    e.target.value = ''
+    if (!arquivo) return
+    if (!arquivo.type.startsWith('image/')) { setError('Escolha um arquivo de imagem.'); return }
+    if (arquivo.size > 5 * 1024 * 1024) { setError('Imagem muito grande (máx. 5MB).'); return }
+    setFotoFile(arquivo)
+    setFotoPreview(URL.createObjectURL(arquivo))
+  }
+
+  function handleRemoverFoto() {
+    setFotoFile(null)
+    setFotoPreview(null)
+    setProdForm(f => ({ ...f, foto_url: '' }))
+  }
+
   async function handleSaveProd() {
     if (!prodForm.nome.trim() || !prodForm.preco_venda) {
       setError('Nome e preço de venda são obrigatórios.'); return
     }
     setSaving(true); setError('')
+
+    let fotoUrl = prodForm.foto_url || null
+    if (fotoFile) {
+      if (!empresaId) { setError('Sua loja ainda não foi identificada. Recarregue a página e tente de novo.'); setSaving(false); return }
+      setUploadingFoto(true)
+      const ext = fotoFile.name.split('.').pop()?.toLowerCase() || 'jpg'
+      const caminho = `${empresaId}/${crypto.randomUUID()}.${ext}`
+      const { error: uploadErr } = await supabase.storage.from('produtos').upload(caminho, fotoFile)
+      setUploadingFoto(false)
+      if (uploadErr) { setError(`Falha ao enviar a foto: ${uploadErr.message}`); setSaving(false); return }
+      fotoUrl = supabase.storage.from('produtos').getPublicUrl(caminho).data.publicUrl
+    }
+
     const temTamanhos = prodTamanhos.some(t => t.tamanho.trim())
     const payload: Record<string, unknown> = {
       nome: prodForm.nome, categoria: prodForm.categoria,
@@ -266,6 +301,7 @@ export default function Produtos() {
       estoque_minimo: prodForm.estoque_minimo ? Number(prodForm.estoque_minimo) : null,
       estoque_maximo: prodForm.estoque_maximo ? Number(prodForm.estoque_maximo) : null,
       comissao_percentual: prodForm.comissao_percentual ? Number(prodForm.comissao_percentual) : null,
+      foto_url: fotoUrl,
     }
     // Com tamanhos cadastrados, o total vem do trigger (soma dos tamanhos)
     // depois que a gente sincronizar produto_tamanhos logo abaixo.
@@ -287,8 +323,10 @@ export default function Produtos() {
 
   function abrirNovoProd() {
     setEditProdId(null)
-    setProdForm({ nome: '', categoria: 'bebidas', sku: '', unidade: 'un', preco_custo: '', preco_venda: '', preco_venda_prazo: '', estoque_atual: '', estoque_minimo: '', estoque_maximo: '', comissao_percentual: '' })
+    setProdForm({ nome: '', categoria: 'bebidas', sku: '', unidade: 'un', preco_custo: '', preco_venda: '', preco_venda_prazo: '', estoque_atual: '', estoque_minimo: '', estoque_maximo: '', comissao_percentual: '', foto_url: '' })
     setProdTamanhos([])
+    setFotoFile(null)
+    setFotoPreview(null)
     setError('')
     setShowProdModal(true)
   }
@@ -302,8 +340,11 @@ export default function Produtos() {
       estoque_atual: String(p.estoque_atual), estoque_minimo: p.estoque_minimo != null ? String(p.estoque_minimo) : '',
       estoque_maximo: p.estoque_maximo != null ? String(p.estoque_maximo) : '',
       comissao_percentual: p.comissao_percentual != null ? String(p.comissao_percentual) : '',
+      foto_url: p.foto_url ?? '',
     })
     setProdTamanhos((p.tamanhos ?? []).map(t => ({ tamanho: t.tamanho, quantidade: String(t.quantidade) })))
+    setFotoFile(null)
+    setFotoPreview(p.foto_url ?? null)
     setError('')
     setShowProdModal(true)
   }
@@ -312,6 +353,8 @@ export default function Produtos() {
     setShowProdModal(false)
     setEditProdId(null)
     setProdTamanhos([])
+    setFotoFile(null)
+    setFotoPreview(null)
   }
 
   async function toggleAtivoProd(id: string, ativo: boolean) {
@@ -435,7 +478,13 @@ export default function Produtos() {
             >
               <input type="checkbox" checked={selecionados.has(p.id)} onChange={() => toggleSelecionado(p.id)} onClick={e => e.stopPropagation()} />
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                <Package size={13} style={{ color: '#444', flexShrink: 0, marginTop: '2px' }} />
+                {p.foto_url ? (
+                  <img src={p.foto_url} alt="" style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'cover', flexShrink: 0, border: '1px solid #2A2A2A' }} />
+                ) : (
+                  <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: '#1F1F1F', border: '1px solid #2A2A2A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Package size={13} style={{ color: '#444' }} />
+                  </div>
+                )}
                 <div style={{ minWidth: 0 }}>
                   <div>
                     <span style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF' }}>{p.nome}</span>
@@ -508,8 +557,13 @@ export default function Produtos() {
                     width: '40px', height: '40px', borderRadius: '10px',
                     background: '#262626', border: '1px solid #333',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    overflow: 'hidden',
                   }}>
-                    <Package size={16} style={{ color: '#A3A3A3' }} />
+                    {p.foto_url ? (
+                      <img src={p.foto_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <Package size={16} style={{ color: '#A3A3A3' }} />
+                    )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -609,6 +663,38 @@ export default function Produtos() {
                   <label className="label">Nome *</label>
                   <input className="input" placeholder="Nome do produto" value={prodForm.nome} onChange={e => setProdForm(f => ({ ...f, nome: e.target.value }))} />
                 </div>
+                <div className="field">
+                  <label className="label">Foto (opcional)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <button
+                      type="button"
+                      onClick={() => fotoInputRef.current?.click()}
+                      style={{
+                        width: '64px', height: '64px', borderRadius: '10px', flexShrink: 0, padding: 0,
+                        background: '#1F1F1F', border: '1px dashed #333',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        overflow: 'hidden', cursor: 'pointer',
+                      }}
+                    >
+                      {fotoPreview ? (
+                        <img src={fotoPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <ImagePlus size={18} style={{ color: '#555' }} />
+                      )}
+                    </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => fotoInputRef.current?.click()}>
+                        {fotoPreview ? 'Trocar foto' : 'Escolher foto'}
+                      </button>
+                      {fotoPreview && (
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={handleRemoverFoto} style={{ color: '#666' }}>
+                          Remover
+                        </button>
+                      )}
+                    </div>
+                    <input ref={fotoInputRef} type="file" accept="image/*" onChange={handleFotoChange} style={{ display: 'none' }} />
+                  </div>
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="field">
                     <label className="label">Categoria</label>
@@ -700,7 +786,7 @@ export default function Produtos() {
                 <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
                   <button className="btn btn-secondary" style={{ flex: 1 }} onClick={fecharModalProd}>Cancelar (Esc)</button>
                   <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleSaveProd} disabled={saving}>
-                    {saving ? 'Salvando...' : `${editProdId ? 'Salvar' : 'Cadastrar'} (F10)`}
+                    {uploadingFoto ? 'Enviando foto...' : saving ? 'Salvando...' : `${editProdId ? 'Salvar' : 'Cadastrar'} (F10)`}
                   </button>
                 </div>
               </div>
@@ -742,8 +828,13 @@ export default function Produtos() {
                     width: '48px', height: '48px', borderRadius: '12px', flexShrink: 0,
                     background: '#262626', border: '1px solid #333',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    overflow: 'hidden',
                   }}>
-                    <Package size={20} style={{ color: '#A3A3A3' }} />
+                    {produtoDetalhe.foto_url ? (
+                      <img src={produtoDetalhe.foto_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <Package size={20} style={{ color: '#A3A3A3' }} />
+                    )}
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <h2 style={{ fontSize: '17px', color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{produtoDetalhe.nome}</h2>

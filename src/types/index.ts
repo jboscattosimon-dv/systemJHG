@@ -75,6 +75,7 @@ export interface Produto {
   comissao_percentual?: number
   ativo: boolean
   created_at?: string
+  foto_url?: string
   tamanhos?: ProdutoTamanho[]
 }
 
