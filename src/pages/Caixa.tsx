@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { formatCurrency, formatDate } from '../lib/utils'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
+import VendaDetalheModal from '../components/VendaDetalheModal'
 import type { SessaoCaixa, MovimentoCaixa } from '../types'
 
 type ModalTipo = null | 'abrir' | 'sangria' | 'suprimento' | 'fechar'
@@ -20,6 +21,7 @@ export default function Caixa() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [resultadoFechamento, setResultadoFechamento] = useState<SessaoCaixa | null>(null)
+  const [comandaDetalheId, setComandaDetalheId] = useState<string | null>(null)
 
   const carregar = useCallback(async () => {
     if (!user) return
@@ -173,10 +175,12 @@ export default function Caixa() {
             ) : movimentos.map((m, i) => (
               <div
                 key={m.id}
+                onClick={() => m.comanda_id && setComandaDetalheId(m.comanda_id)}
                 style={{
                   display: 'grid', gridTemplateColumns: '1fr 120px 100px 110px',
                   padding: '13px 24px', alignItems: 'center',
                   borderBottom: i < movimentos.length - 1 ? '1px solid #1A1A1A' : 'none',
+                  cursor: m.comanda_id ? 'pointer' : 'default',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -285,6 +289,13 @@ export default function Caixa() {
               </button>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Detalhe da venda (clique num movimento) */}
+      <AnimatePresence>
+        {comandaDetalheId && (
+          <VendaDetalheModal comandaId={comandaDetalheId} onClose={() => setComandaDetalheId(null)} />
         )}
       </AnimatePresence>
     </div>

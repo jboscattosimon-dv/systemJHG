@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
@@ -8,6 +8,7 @@ import { TrendingUp, TrendingDown, DollarSign, Plus, ArrowUpRight, ArrowDownRigh
 import { supabase } from '../lib/supabase'
 import { formatCurrency, formatDate } from '../lib/utils'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
+import VendaDetalheModal from '../components/VendaDetalheModal'
 import type { MovimentoCaixa } from '../types'
 
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
@@ -35,6 +36,7 @@ export default function Financeiro() {
   const [form, setForm] = useState({ tipo: 'saida', categoria: '', descricao: '', valor: '' })
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
+  const [comandaDetalheId, setComandaDetalheId] = useState<string | null>(null)
 
   const hoje = new Date().toISOString().split('T')[0]
   const movHoje    = movimentos.filter(m => m.data === hoje)
@@ -215,12 +217,14 @@ export default function Financeiro() {
           <div
             key={m.id}
             className="list-row"
+            onClick={() => m.comanda_id && setComandaDetalheId(m.comanda_id)}
             style={{
               display: 'grid',
               gridTemplateColumns: '1fr 120px 100px 110px',
               padding: '13px 24px',
               borderBottom: i < movimentos.length - 1 ? '1px solid #1A1A1A' : 'none',
               alignItems: 'center',
+              cursor: m.comanda_id ? 'pointer' : 'default',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -279,6 +283,13 @@ export default function Financeiro() {
           </div>
         </div>
       )}
+
+      {/* Detalhe da venda (clique num movimento) */}
+      <AnimatePresence>
+        {comandaDetalheId && (
+          <VendaDetalheModal comandaId={comandaDetalheId} onClose={() => setComandaDetalheId(null)} />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

@@ -416,11 +416,20 @@ export default function Condicionais() {
                 Roupas levadas ({(condDetalhe.itens ?? []).length})
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '18px' }}>
-                {(condDetalhe.itens ?? []).map(item => (
+                {(condDetalhe.itens ?? []).map(item => {
+                  const fotoItem = produtos.find(p => p.id === item.produto_id)?.foto_url
+                  return (
                   <div key={item.id} style={{
                     display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px',
                     borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid #252525',
                   }}>
+                    {fotoItem ? (
+                      <img src={fotoItem} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover', flexShrink: 0, border: '1px solid #2A2A2A' }} />
+                    ) : (
+                      <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#1F1F1F', border: '1px solid #2A2A2A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Package size={14} style={{ color: '#555' }} />
+                      </div>
+                    )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF' }}>
                         {item.nome}{item.tamanho && <span style={{ color: '#777' }}> — {item.tamanho}</span>}
@@ -438,7 +447,8 @@ export default function Condicionais() {
                       </span>
                     )}
                   </div>
-                ))}
+                  )
+                })}
               </div>
 
               <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', marginBottom: '18px' }}>
@@ -824,11 +834,19 @@ export default function Condicionais() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '18px' }}>
                 {itensFechar.map(item => {
                   const decisao = decisoes[item.id]
+                  const fotoItem = produtos.find(p => p.id === item.produto_id)?.foto_url
                   return (
                     <div key={item.id} style={{
                       display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px',
                       borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid #252525',
                     }}>
+                      {fotoItem ? (
+                        <img src={fotoItem} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover', flexShrink: 0, border: '1px solid #2A2A2A' }} />
+                      ) : (
+                        <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#1F1F1F', border: '1px solid #2A2A2A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Package size={14} style={{ color: '#555' }} />
+                        </div>
+                      )}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF' }}>
                           {item.nome}{item.tamanho && <span style={{ color: '#777' }}> — {item.tamanho}</span>}
