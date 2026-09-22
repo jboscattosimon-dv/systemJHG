@@ -630,7 +630,13 @@ export default function Condicionais() {
                         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                       >
                         <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden', flex: 1 }}>
-                          <Package size={12} style={{ color: '#555', flexShrink: 0 }} />
+                          {p.foto_url ? (
+                            <img src={p.foto_url} alt="" style={{ width: '24px', height: '24px', borderRadius: '5px', objectFit: 'cover', flexShrink: 0, border: '1px solid #2A2A2A' }} />
+                          ) : (
+                            <div style={{ width: '24px', height: '24px', borderRadius: '5px', background: '#1F1F1F', border: '1px solid #2A2A2A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <Package size={12} style={{ color: '#555' }} />
+                            </div>
+                          )}
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome}</span>
                         </span>
                         {p.tamanhos && p.tamanhos.length > 0 ? (
