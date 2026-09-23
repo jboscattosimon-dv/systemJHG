@@ -28,6 +28,7 @@ export default function Condicionais() {
   const souAtendente = papel === 'atendente'
   const [condicionais, setCondicionais] = useState<Condicional[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
+  const [emailPorUsuario, setEmailPorUsuario] = useState<Record<string, string>>({})
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<Filtro>('aberto')
@@ -78,6 +79,12 @@ export default function Condicionais() {
     carregar()
     supabase.from('clientes').select('*').eq('ativo', true).order('nome')
       .then(({ data }) => { if (data) setClientes(data as Cliente[]) })
+    supabase.rpc('listar_usuarios_basico').then(({ data }) => {
+      if (!data) return
+      const mapa: Record<string, string> = {}
+      ;(data as { usuario_id: string; email: string }[]).forEach(u => { mapa[u.usuario_id] = u.email })
+      setEmailPorUsuario(mapa)
+    })
     // Atendente não recebe preco_custo nem na resposta da API.
     const colunasProduto: string = souAtendente
       ? 'id, nome, categoria, sku, unidade, preco_venda, preco_venda_prazo, estoque_atual, estoque_minimo, estoque_maximo, comissao_percentual, ativo, foto_url, created_at, empresa_id, tamanhos:produto_tamanhos(*)'
@@ -94,6 +101,12 @@ export default function Condicionais() {
   }, [carregar, souAtendente])
 
   const parcelasCartaoOrdenadas = Object.keys(taxasCartao).map(Number).sort((a, b) => a - b)
+
+  function nomeUsuario(usuarioId?: string): string | null {
+    if (!usuarioId) return null
+    const email = emailPorUsuario[usuarioId]
+    return email ? email.split('@')[0] : null
+  }
 
   const filtrados = condicionais.filter(c => filtro === 'todos' ? true : c.status === filtro)
   const totalItem = (i: { quantidade: number; preco_unitario: number }) => i.quantidade * i.preco_unitario
@@ -343,7 +356,9 @@ export default function Condicionais() {
           >
             <div>
               <span style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF' }}>{c.cliente?.nome ?? '—'}</span>
-              <p style={{ fontSize: '11px', color: '#555' }}>{formatDate(c.criado_em)}</p>
+              <p style={{ fontSize: '11px', color: '#555' }}>
+                {formatDate(c.criado_em)}{nomeUsuario(c.usuario_id) && ` · ${nomeUsuario(c.usuario_id)}`}
+              </p>
             </div>
             <span style={{ fontSize: '13px', color: '#A3A3A3' }}>{(c.itens ?? []).length}</span>
             <span style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>{formatCurrency(totalCondicional(c))}</span>
@@ -371,7 +386,9 @@ export default function Condicionais() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
                 <div style={{ minWidth: 0 }}>
                   <p className="entity-title" style={{ fontSize: '14px', color: '#FFFFFF', fontWeight: 600 }}>{c.cliente?.nome ?? '—'}</p>
-                  <p className="entity-subtle" style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>{formatDate(c.criado_em)} · {(c.itens ?? []).length} itens</p>
+                  <p className="entity-subtle" style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>
+                    {formatDate(c.criado_em)} · {(c.itens ?? []).length} itens{nomeUsuario(c.usuario_id) && ` · ${nomeUsuario(c.usuario_id)}`}
+                  </p>
                 </div>
                 <span className={c.status === 'fechado' ? 'badge badge-done' : 'badge badge-pending'}>
                   {STATUS_LABEL[c.status]}
@@ -413,6 +430,7 @@ export default function Condicionais() {
                 <span style={{ fontSize: '11px', color: '#555' }}>
                   Saiu em {formatDate(condDetalhe.criado_em)}
                   {condDetalhe.fechado_em && ` · Fechado em ${formatDate(condDetalhe.fechado_em)}`}
+                  {nomeUsuario(condDetalhe.usuario_id) && ` · por ${nomeUsuario(condDetalhe.usuario_id)}`}
                 </span>
               </div>
 

@@ -4,6 +4,8 @@ import { motion } from 'framer-motion'
 import { DollarSign, TrendingUp, TrendingDown, Wallet, Plus, ChevronRight, ShoppingCart, PackageOpen, UserPlus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency, formatDate } from '../lib/utils'
+import { useAuth } from '../hooks/useAuth'
+import { usePerfil } from '../hooks/usePerfil'
 
 interface RankItem { nome: string; total: number }
 interface CondicionalResumo { id: string; cliente_nome: string; criado_em: string; itensCount: number; total: number }
@@ -16,6 +18,9 @@ function handleGlowMove(e: MouseEvent<HTMLDivElement>) {
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const { papel, loading: perfilLoading } = usePerfil()
+  const souAtendente = papel === 'atendente'
   const [loading, setLoading] = useState(true)
   const [financeiro, setFinanceiro] = useState({ faturamentoMes: 0, despesasMes: 0, aReceber: 0, aPagar: 0, saldoCaixa: 0, caixaAberto: false })
   const [resumoHoje, setResumoHoje] = useState({ vendas: 0, faturamento: 0, condicionaisAbertos: 0, clientesNovos: 0 })
@@ -28,34 +33,40 @@ export default function Dashboard() {
   const dataStr = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
 
   useEffect(() => {
+    if (perfilLoading) return
     const today = new Date().toISOString().split('T')[0]
 
-    supabase
+    let condicionaisQuery = supabase
       .from('condicionais')
-      .select('id, criado_em, cliente:clientes(nome), itens:itens_condicional(quantidade, preco_unitario)')
+      .select('id, usuario_id, criado_em, cliente:clientes(nome), itens:itens_condicional(quantidade, preco_unitario)')
       .eq('status', 'aberto')
       .order('criado_em', { ascending: false })
       .limit(8)
-      .then(({ data }) => {
-        const rows = ((data ?? []) as unknown as { id: string; criado_em: string; cliente: { nome: string } | { nome: string }[] | null; itens: { quantidade: number; preco_unitario: number }[] }[]).map(c => ({
-          id: c.id,
-          cliente_nome: (Array.isArray(c.cliente) ? c.cliente[0]?.nome : c.cliente?.nome) ?? '—',
-          criado_em: c.criado_em,
-          itensCount: c.itens.length,
-          total: c.itens.reduce((s, i) => s + i.quantidade * i.preco_unitario, 0),
-        }))
-        setCondicionaisLista(rows)
-        setLoading(false)
-      })
+    if (souAtendente && user) condicionaisQuery = condicionaisQuery.eq('usuario_id', user.id)
+    condicionaisQuery.then(({ data }) => {
+      const rows = ((data ?? []) as unknown as { id: string; criado_em: string; cliente: { nome: string } | { nome: string }[] | null; itens: { quantidade: number; preco_unitario: number }[] }[]).map(c => ({
+        id: c.id,
+        cliente_nome: (Array.isArray(c.cliente) ? c.cliente[0]?.nome : c.cliente?.nome) ?? '—',
+        criado_em: c.criado_em,
+        itensCount: c.itens.length,
+        total: c.itens.reduce((s, i) => s + i.quantidade * i.preco_unitario, 0),
+      }))
+      setCondicionaisLista(rows)
+      setLoading(false)
+    })
 
-    supabase.from('comandas').select('total').eq('status', 'fechada').eq('data', today)
-      .then(({ data }) => {
-        const rows = (data ?? []) as { total: number }[]
-        setResumoHoje(r => ({ ...r, vendas: rows.length, faturamento: rows.reduce((s, c) => s + c.total, 0) }))
-      })
+    let comandasQuery = supabase.from('comandas').select('total').eq('status', 'fechada').eq('data', today)
+    if (souAtendente && user) comandasQuery = comandasQuery.eq('usuario_id', user.id)
+    comandasQuery.then(({ data }) => {
+      const rows = (data ?? []) as { total: number }[]
+      setResumoHoje(r => ({ ...r, vendas: rows.length, faturamento: rows.reduce((s, c) => s + c.total, 0) }))
+    })
 
-    supabase.from('condicionais').select('id', { count: 'exact', head: true }).eq('status', 'aberto')
-      .then(({ count }) => setResumoHoje(r => ({ ...r, condicionaisAbertos: count ?? 0 })))
+    let condicionaisAbertosQuery = supabase.from('condicionais').select('id', { count: 'exact', head: true }).eq('status', 'aberto')
+    if (souAtendente && user) condicionaisAbertosQuery = condicionaisAbertosQuery.eq('usuario_id', user.id)
+    condicionaisAbertosQuery.then(({ count }) => setResumoHoje(r => ({ ...r, condicionaisAbertos: count ?? 0 })))
+
+    if (souAtendente) return
 
     supabase.from('clientes').select('id', { count: 'exact', head: true })
       .gte('created_at', `${today}T00:00:00`).lte('created_at', `${today}T23:59:59`)
@@ -112,11 +123,15 @@ export default function Dashboard() {
         setTopProdutos(Object.entries(produtosMap).map(([nome, total]) => ({ nome, total })).sort((a, b) => b.total - a.total).slice(0, 5))
         setTopProfissionais(Object.entries(profissionaisMap).map(([nome, total]) => ({ nome, total })).sort((a, b) => b.total - a.total).slice(0, 5))
       })
-  }, [])
+  }, [perfilLoading, souAtendente, user])
 
   const ticketMedioHoje = resumoHoje.vendas > 0 ? resumoHoje.faturamento / resumoHoje.vendas : 0
 
-  const stats = [
+  const stats = souAtendente ? [
+    { label: 'Suas vendas',      value: resumoHoje.vendas, sub: 'hoje', icon: ShoppingCart, to: '/vendas' },
+    { label: 'Seu faturamento',  value: formatCurrency(resumoHoje.faturamento), sub: 'hoje', icon: DollarSign, to: '/relatorios' },
+    { label: 'Seus condicionais', value: resumoHoje.condicionaisAbertos, sub: 'em aberto', icon: PackageOpen, to: '/condicional' },
+  ] : [
     { label: 'Vendas',       value: resumoHoje.vendas, sub: 'hoje', icon: ShoppingCart, to: '/vendas' },
     { label: 'Faturamento',  value: formatCurrency(resumoHoje.faturamento), sub: 'hoje', icon: DollarSign, to: '/relatorios' },
     { label: 'Ticket médio', value: formatCurrency(ticketMedioHoje), sub: 'hoje', icon: TrendingUp, to: '/relatorios' },
@@ -156,7 +171,7 @@ export default function Dashboard() {
       </motion.div>
 
       {/* Stat cards */}
-      <div className="dashboard-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px', marginBottom: '28px' }}>
+      <div className="dashboard-stats-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${stats.length}, 1fr)`, gap: '16px', marginBottom: '28px' }}>
         {stats.map((s, i) => {
           const Icon = s.icon
           return (
@@ -190,52 +205,56 @@ export default function Dashboard() {
       </div>
 
       {/* Financeiro do mês */}
-      <div className="dashboard-fin-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '16px', marginBottom: '28px' }}>
-        {statsFinanceiro.map((s, i) => {
-          const Icon = s.icon
-          return (
-            <motion.div
-              key={s.label}
-              className="card glow-card"
-              onMouseMove={handleGlowMove}
-              onClick={() => navigate(s.to)}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + i * 0.05, duration: 0.3 }}
-            >
-              <Icon size={14} style={{ color: '#555', marginBottom: '10px' }} strokeWidth={1.75} />
-              <p style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF', fontFamily: 'DM Sans, sans-serif' }}>{s.value}</p>
-              <p style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>{s.label}</p>
-            </motion.div>
-          )
-        })}
-      </div>
+      {!souAtendente && (
+        <div className="dashboard-fin-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '16px', marginBottom: '28px' }}>
+          {statsFinanceiro.map((s, i) => {
+            const Icon = s.icon
+            return (
+              <motion.div
+                key={s.label}
+                className="card glow-card"
+                onMouseMove={handleGlowMove}
+                onClick={() => navigate(s.to)}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 + i * 0.05, duration: 0.3 }}
+              >
+                <Icon size={14} style={{ color: '#555', marginBottom: '10px' }} strokeWidth={1.75} />
+                <p style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF', fontFamily: 'DM Sans, sans-serif' }}>{s.value}</p>
+                <p style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>{s.label}</p>
+              </motion.div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Rankings do mês */}
-      <div className="dashboard-rankings-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '28px' }}>
-        <div className="card">
-          <p style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', marginBottom: '14px' }}>Produtos mais vendidos (mês)</p>
-          {topProdutos.length === 0 ? (
-            <p style={{ fontSize: '12px', color: '#444' }}>Sem vendas no mês.</p>
-          ) : topProdutos.map(s => (
-            <div key={s.nome} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #1A1A1A' }}>
-              <span style={{ fontSize: '13px', color: '#A3A3A3' }}>{s.nome}</span>
-              <span style={{ fontSize: '13px', color: '#FFFFFF', fontWeight: 600 }}>{formatCurrency(s.total)}</span>
-            </div>
-          ))}
+      {!souAtendente && (
+        <div className="dashboard-rankings-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '28px' }}>
+          <div className="card">
+            <p style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', marginBottom: '14px' }}>Produtos mais vendidos (mês)</p>
+            {topProdutos.length === 0 ? (
+              <p style={{ fontSize: '12px', color: '#444' }}>Sem vendas no mês.</p>
+            ) : topProdutos.map(s => (
+              <div key={s.nome} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #1A1A1A' }}>
+                <span style={{ fontSize: '13px', color: '#A3A3A3' }}>{s.nome}</span>
+                <span style={{ fontSize: '13px', color: '#FFFFFF', fontWeight: 600 }}>{formatCurrency(s.total)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="card">
+            <p style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', marginBottom: '14px' }}>Profissionais — faturamento (mês)</p>
+            {topProfissionais.length === 0 ? (
+              <p style={{ fontSize: '12px', color: '#444' }}>Sem vendas no mês.</p>
+            ) : topProfissionais.map(p => (
+              <div key={p.nome} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #1A1A1A' }}>
+                <span style={{ fontSize: '13px', color: '#A3A3A3' }}>{p.nome}</span>
+                <span style={{ fontSize: '13px', color: '#FFFFFF', fontWeight: 600 }}>{formatCurrency(p.total)}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="card">
-          <p style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', marginBottom: '14px' }}>Profissionais — faturamento (mês)</p>
-          {topProfissionais.length === 0 ? (
-            <p style={{ fontSize: '12px', color: '#444' }}>Sem vendas no mês.</p>
-          ) : topProfissionais.map(p => (
-            <div key={p.nome} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #1A1A1A' }}>
-              <span style={{ fontSize: '13px', color: '#A3A3A3' }}>{p.nome}</span>
-              <span style={{ fontSize: '13px', color: '#FFFFFF', fontWeight: 600 }}>{formatCurrency(p.total)}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* Condicionais em aberto */}
       <motion.div

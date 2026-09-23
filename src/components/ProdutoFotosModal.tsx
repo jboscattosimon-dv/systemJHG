@@ -23,7 +23,8 @@ export default function ProdutoFotosModal({ produto, onClose, onChange }: {
   onClose: () => void
   onChange: () => void
 }) {
-  const { empresaId } = usePerfil()
+  const { empresaId, papel } = usePerfil()
+  const souAtendente = papel === 'atendente'
   const [fotos, setFotos] = useState<Foto[]>([])
   const [capaUrl, setCapaUrl] = useState<string | null>(produto.foto_url ?? null)
   const [loading, setLoading] = useState(true)
@@ -133,48 +134,54 @@ export default function ProdutoFotosModal({ produto, onClose, onChange }: {
                     <Star size={9} fill="#FFFFFF" /> Capa
                   </span>
                 )}
-                <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
-                  {foto.url !== capaUrl && (
+                {!souAtendente && (
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                    {foto.url !== capaUrl && (
+                      <button
+                        title="Tornar capa"
+                        onClick={() => handleTornarCapa(foto)}
+                        style={{ flex: 1, background: 'transparent', border: '1px solid #2A2A2A', borderRadius: '6px', padding: '4px', cursor: 'pointer', color: '#666', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Star size={11} />
+                      </button>
+                    )}
                     <button
-                      title="Tornar capa"
-                      onClick={() => handleTornarCapa(foto)}
+                      title="Excluir"
+                      onClick={() => handleExcluir(foto)}
                       style={{ flex: 1, background: 'transparent', border: '1px solid #2A2A2A', borderRadius: '6px', padding: '4px', cursor: 'pointer', color: '#666', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     >
-                      <Star size={11} />
+                      <Trash2 size={11} />
                     </button>
-                  )}
-                  <button
-                    title="Excluir"
-                    onClick={() => handleExcluir(foto)}
-                    style={{ flex: 1, background: 'transparent', border: '1px solid #2A2A2A', borderRadius: '6px', padding: '4px', cursor: 'pointer', color: '#666', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    <Trash2 size={11} />
-                  </button>
-                </div>
+                  </div>
+                )}
               </div>
             ))}
 
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              style={{
-                aspectRatio: '1', borderRadius: '8px', background: '#1F1F1F', border: '1px dashed #333',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px',
-                cursor: uploading ? 'default' : 'pointer', color: '#555', fontSize: '11px',
-              }}
-            >
-              {uploading ? <span>Enviando...</span> : <><Plus size={16} /><span>Adicionar</span></>}
-            </button>
+            {!souAtendente && (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                style={{
+                  aspectRatio: '1', borderRadius: '8px', background: '#1F1F1F', border: '1px dashed #333',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                  cursor: uploading ? 'default' : 'pointer', color: '#555', fontSize: '11px',
+                }}
+              >
+                {uploading ? <span>Enviando...</span> : <><Plus size={16} /><span>Adicionar</span></>}
+              </button>
+            )}
           </div>
         )}
 
         {!loading && fotos.length === 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#444', fontSize: '12px', marginBottom: '14px' }}>
-            <Package size={13} /> Nenhuma foto ainda — adicione a primeira.
+            <Package size={13} /> {souAtendente ? 'Nenhuma foto ainda.' : 'Nenhuma foto ainda — adicione a primeira.'}
           </div>
         )}
 
-        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleUpload} style={{ display: 'none' }} />
+        {!souAtendente && (
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleUpload} style={{ display: 'none' }} />
+        )}
 
         {error && <p style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>{error}</p>}
 

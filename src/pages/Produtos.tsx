@@ -353,17 +353,21 @@ export default function Produtos() {
               <Tag size={12} /> Imprimir etiquetas ({selecionados.size})
             </button>
           )}
-          <button className="btn btn-icon" title="Baixar modelo de planilha" onClick={baixarModeloProdutos}>
-            <Download size={13} />
-          </button>
+          {!souAtendente && (
+            <button className="btn btn-icon" title="Baixar modelo de planilha" onClick={baixarModeloProdutos}>
+              <Download size={13} />
+            </button>
+          )}
           {produtos.length > 0 && (
             <button className="btn btn-icon" title="Exportar catálogo atual" onClick={() => exportarProdutos(produtos)}>
               <FileSpreadsheet size={13} />
             </button>
           )}
-          <button className="btn btn-icon" title={importando ? 'Importando...' : 'Importar produtos por planilha'} onClick={() => fileInputRef.current?.click()} disabled={importando}>
-            <Upload size={13} />
-          </button>
+          {!souAtendente && (
+            <button className="btn btn-icon" title={importando ? 'Importando...' : 'Importar produtos por planilha'} onClick={() => fileInputRef.current?.click()} disabled={importando}>
+              <Upload size={13} />
+            </button>
+          )}
           <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleImportarArquivo} style={{ display: 'none' }} />
           {!souAtendente && <div style={{ width: '1px', height: '20px', background: '#252525', margin: '0 4px' }} />}
           {!souAtendente && (
@@ -371,9 +375,11 @@ export default function Produtos() {
               <ClipboardList size={14} /> Nova Entrada
             </button>
           )}
-          <button className="btn btn-primary" onClick={abrirNovoProd} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Plus size={14} strokeWidth={2.5} /> Novo Produto
-          </button>
+          {!souAtendente && (
+            <button className="btn btn-primary" onClick={abrirNovoProd} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Plus size={14} strokeWidth={2.5} /> Novo Produto
+            </button>
+          )}
         </div>
       </div>
 
@@ -492,21 +498,24 @@ export default function Produtos() {
                 {p.estoque_atual} {p.unidade}
               </span>
               <button
-                onClick={e => { e.stopPropagation(); toggleAtivoProd(p.id, p.ativo) }}
+                onClick={e => { e.stopPropagation(); if (!souAtendente) toggleAtivoProd(p.id, p.ativo) }}
+                disabled={souAtendente}
                 style={{
                   fontSize: '10px', padding: '3px 9px', borderRadius: '99px',
                   border: p.ativo ? '1px solid rgba(255,255,255,0.2)' : '1px dashed #333',
                   background: 'transparent',
                   color: p.ativo ? '#A3A3A3' : '#444',
-                  cursor: 'pointer', width: 'fit-content',
+                  cursor: souAtendente ? 'default' : 'pointer', width: 'fit-content',
                 }}
               >
                 {p.ativo ? 'Ativo' : 'Inativo'}
               </button>
               <div style={{ display: 'flex', gap: '4px' }}>
-                <button className="btn btn-icon" title="Editar" onClick={e => { e.stopPropagation(); abrirEdicaoProd(p) }}>
-                  <Pencil size={12} />
-                </button>
+                {!souAtendente && (
+                  <button className="btn btn-icon" title="Editar" onClick={e => { e.stopPropagation(); abrirEdicaoProd(p) }}>
+                    <Pencil size={12} />
+                  </button>
+                )}
                 <button className="btn btn-icon" title="Gerar/imprimir etiqueta" onClick={e => { e.stopPropagation(); setProdutosEtiqueta([p]) }}>
                   <Tag size={12} />
                 </button>
@@ -559,11 +568,12 @@ export default function Produtos() {
                     {detalhes && <p className="entity-subtle" style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>{detalhes}</p>}
                   </div>
                   <button
-                    onClick={e => { e.stopPropagation(); toggleAtivoProd(p.id, p.ativo) }}
+                    onClick={e => { e.stopPropagation(); if (!souAtendente) toggleAtivoProd(p.id, p.ativo) }}
+                    disabled={souAtendente}
                     style={{
                       fontSize: '10px', padding: '3px 9px', borderRadius: '99px', flexShrink: 0,
                       border: p.ativo ? '1px solid rgba(255,255,255,0.2)' : '1px dashed #333',
-                      background: 'transparent', color: p.ativo ? '#A3A3A3' : '#444', cursor: 'pointer',
+                      background: 'transparent', color: p.ativo ? '#A3A3A3' : '#444', cursor: souAtendente ? 'default' : 'pointer',
                     }}
                   >
                     {p.ativo ? 'Ativo' : 'Inativo'}
@@ -605,9 +615,11 @@ export default function Produtos() {
                 )}
 
                 <div className="entity-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-                  <button className="btn btn-icon" title="Editar" onClick={e => { e.stopPropagation(); abrirEdicaoProd(p) }}>
-                    <Pencil size={12} />
-                  </button>
+                  {!souAtendente && (
+                    <button className="btn btn-icon" title="Editar" onClick={e => { e.stopPropagation(); abrirEdicaoProd(p) }}>
+                      <Pencil size={12} />
+                    </button>
+                  )}
                   <button className="btn btn-icon" title="Gerar/imprimir etiqueta" onClick={e => { e.stopPropagation(); setProdutosEtiqueta([p]) }}>
                     <Tag size={12} />
                   </button>
@@ -877,9 +889,11 @@ export default function Produtos() {
                 <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => { setProdutosEtiqueta([produtoDetalhe]); setProdutoDetalhe(null) }}>
                   <Tag size={13} /> Etiqueta
                 </button>
-                <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => { const p = produtoDetalhe; setProdutoDetalhe(null); abrirEdicaoProd(p) }}>
-                  <Pencil size={13} /> Editar
-                </button>
+                {!souAtendente && (
+                  <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => { const p = produtoDetalhe; setProdutoDetalhe(null); abrirEdicaoProd(p) }}>
+                    <Pencil size={13} /> Editar
+                  </button>
+                )}
               </div>
             </motion.div>
           </motion.div>
