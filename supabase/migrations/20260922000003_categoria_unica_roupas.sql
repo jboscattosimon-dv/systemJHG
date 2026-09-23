@@ -7,9 +7,13 @@
 -- e vira sempre "roupas" — todo produto já cadastrado é migrado, e a
 -- coluna passa a aceitar só esse valor.
 
+-- Precisa soltar a constraint antiga ANTES de atualizar os dados —
+-- ela só aceitava bebidas/pomadas/petiscos/outros, então o UPDATE pra
+-- 'roupas' abaixo seria barrado por ela se a ordem fosse invertida.
+ALTER TABLE public.produtos DROP CONSTRAINT IF EXISTS produtos_categoria_check;
+
 UPDATE public.produtos SET categoria = 'roupas' WHERE categoria <> 'roupas';
 
-ALTER TABLE public.produtos DROP CONSTRAINT IF EXISTS produtos_categoria_check;
 ALTER TABLE public.produtos ALTER COLUMN categoria SET DEFAULT 'roupas';
 ALTER TABLE public.produtos ADD CONSTRAINT produtos_categoria_check CHECK (categoria = 'roupas');
 
