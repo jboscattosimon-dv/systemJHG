@@ -56,19 +56,27 @@ CREATE POLICY "produto_tamanhos_update" ON public.produto_tamanhos FOR UPDATE TO
 CREATE POLICY "produto_tamanhos_delete" ON public.produto_tamanhos FOR DELETE TO authenticated
   USING (empresa_id = public.minha_empresa() AND public.pode_gerenciar_produtos());
 
--- produto_fotos
-DROP POLICY IF EXISTS "empresa_isolada" ON public.produto_fotos;
-DROP POLICY IF EXISTS "produto_fotos_select" ON public.produto_fotos;
-DROP POLICY IF EXISTS "produto_fotos_insert" ON public.produto_fotos;
-DROP POLICY IF EXISTS "produto_fotos_update" ON public.produto_fotos;
-DROP POLICY IF EXISTS "produto_fotos_delete" ON public.produto_fotos;
+-- produto_fotos (só se a tabela já existir nesse banco — feature de
+-- galeria multi-foto pode não ter sido migrada ainda)
+DO $$
+BEGIN
+  IF to_regclass('public.produto_fotos') IS NULL THEN
+    RETURN;
+  END IF;
 
-CREATE POLICY "produto_fotos_select" ON public.produto_fotos FOR SELECT TO authenticated
-  USING (empresa_id = public.minha_empresa());
-CREATE POLICY "produto_fotos_insert" ON public.produto_fotos FOR INSERT TO authenticated
-  WITH CHECK (empresa_id = public.minha_empresa() AND public.pode_gerenciar_produtos());
-CREATE POLICY "produto_fotos_update" ON public.produto_fotos FOR UPDATE TO authenticated
-  USING (empresa_id = public.minha_empresa() AND public.pode_gerenciar_produtos())
-  WITH CHECK (empresa_id = public.minha_empresa() AND public.pode_gerenciar_produtos());
-CREATE POLICY "produto_fotos_delete" ON public.produto_fotos FOR DELETE TO authenticated
-  USING (empresa_id = public.minha_empresa() AND public.pode_gerenciar_produtos());
+  EXECUTE 'DROP POLICY IF EXISTS "empresa_isolada" ON public.produto_fotos';
+  EXECUTE 'DROP POLICY IF EXISTS "produto_fotos_select" ON public.produto_fotos';
+  EXECUTE 'DROP POLICY IF EXISTS "produto_fotos_insert" ON public.produto_fotos';
+  EXECUTE 'DROP POLICY IF EXISTS "produto_fotos_update" ON public.produto_fotos';
+  EXECUTE 'DROP POLICY IF EXISTS "produto_fotos_delete" ON public.produto_fotos';
+
+  EXECUTE 'CREATE POLICY "produto_fotos_select" ON public.produto_fotos FOR SELECT TO authenticated
+    USING (empresa_id = public.minha_empresa())';
+  EXECUTE 'CREATE POLICY "produto_fotos_insert" ON public.produto_fotos FOR INSERT TO authenticated
+    WITH CHECK (empresa_id = public.minha_empresa() AND public.pode_gerenciar_produtos())';
+  EXECUTE 'CREATE POLICY "produto_fotos_update" ON public.produto_fotos FOR UPDATE TO authenticated
+    USING (empresa_id = public.minha_empresa() AND public.pode_gerenciar_produtos())
+    WITH CHECK (empresa_id = public.minha_empresa() AND public.pode_gerenciar_produtos())';
+  EXECUTE 'CREATE POLICY "produto_fotos_delete" ON public.produto_fotos FOR DELETE TO authenticated
+    USING (empresa_id = public.minha_empresa() AND public.pode_gerenciar_produtos())';
+END $$;
