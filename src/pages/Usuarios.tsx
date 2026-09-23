@@ -44,7 +44,7 @@ export default function Usuarios() {
 
   useEffect(() => { carregar() }, [souSuperAdmin])
 
-  async function salvar(u: UsuarioListado, campo: 'papel' | 'profissional_id' | 'ativo' | 'empresa_id', valor: string | boolean) {
+  async function salvar(u: UsuarioListado, campo: 'papel' | 'profissional_id' | 'ativo' | 'empresa_id' | 'comissao_percentual', valor: string | boolean | number) {
     const atualizado = { ...u, [campo]: valor === '' ? null : valor }
     setUsuarios(prev => prev.map(x => x.usuario_id === u.usuario_id ? atualizado : x))
     setSavingId(u.usuario_id)
@@ -54,6 +54,7 @@ export default function Usuarios() {
       p_profissional_id: atualizado.profissional_id || null,
       p_ativo: atualizado.ativo,
       p_empresa_id: atualizado.empresa_id || null,
+      p_comissao_percentual: atualizado.comissao_percentual != null ? Number(atualizado.comissao_percentual) : null,
     })
     setSavingId(null)
     if (err) { setError(err.message); carregar(); return }
@@ -325,7 +326,7 @@ export default function Usuarios() {
     )
   }
 
-  const colunas = '1fr 140px 180px 80px 100px 110px'
+  const colunas = '1fr 140px 100px 180px 80px 100px 110px'
 
   return (
     <div className="page">
@@ -347,6 +348,7 @@ export default function Usuarios() {
         }}>
           <span>E-mail</span>
           <span>Papel</span>
+          <span>Comissão</span>
           <span>Vinculado a</span>
           <span>Ativo</span>
           <span>Desde</span>
@@ -384,6 +386,14 @@ export default function Usuarios() {
                 .filter(([k]) => k !== 'super_admin')
                 .map(([k, label]) => <option key={k} value={k}>{label}</option>)}
             </select>
+
+            <input
+              className="input" type="number" min={0} max={100} step={0.1}
+              style={{ fontSize: '12px', padding: '6px 8px' }}
+              placeholder="0%"
+              value={u.comissao_percentual ?? ''}
+              onChange={e => salvar(u, 'comissao_percentual', e.target.value)}
+            />
 
             <select
               className="input"
@@ -448,6 +458,16 @@ export default function Usuarios() {
                       .filter(([k]) => k !== 'super_admin')
                       .map(([k, label]) => <option key={k} value={k}>{label}</option>)}
                   </select>
+                </div>
+                <div>
+                  <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Comissão (%)</p>
+                  <input
+                    className="input" type="number" min={0} max={100} step={0.1}
+                    style={{ fontSize: '13px' }}
+                    placeholder="0%"
+                    value={u.comissao_percentual ?? ''}
+                    onChange={e => salvar(u, 'comissao_percentual', e.target.value)}
+                  />
                 </div>
                 <div>
                   <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Profissional vinculado</p>

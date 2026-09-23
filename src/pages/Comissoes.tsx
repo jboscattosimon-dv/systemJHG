@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Percent } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency, formatDate } from '../lib/utils'
+import { usePerfil } from '../hooks/usePerfil'
 import type { Comissao, ComissaoStatus, Profissional } from '../types'
 
 const STATUS_LABEL: Record<ComissaoStatus, string> = {
@@ -22,8 +23,11 @@ const PROXIMO_LABEL: Partial<Record<ComissaoStatus, string>> = {
 type FiltroStatus = 'todas' | ComissaoStatus
 
 export default function Comissoes() {
+  const { papel } = usePerfil()
+  const podeGerenciar = papel === 'administrador' || papel === 'gerente' || papel === 'super_admin'
   const [comissoes, setComissoes] = useState<(Comissao & { created_at: string })[]>([])
   const [profissionais, setProfissionais] = useState<Profissional[]>([])
+  const [emailPorUsuario, setEmailPorUsuario] = useState<Record<string, string>>({})
   const [filtroProf, setFiltroProf] = useState('')
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>('todas')
   const [loading, setLoading] = useState(true)
@@ -38,7 +42,19 @@ export default function Comissoes() {
     carregar()
     supabase.from('profissionais').select('*').order('nome')
       .then(({ data }) => { if (data) setProfissionais(data as Profissional[]) })
+    supabase.rpc('listar_usuarios_basico').then(({ data }) => {
+      if (!data) return
+      const mapa: Record<string, string> = {}
+      ;(data as { usuario_id: string; email: string }[]).forEach(u => { mapa[u.usuario_id] = u.email })
+      setEmailPorUsuario(mapa)
+    })
   }, [carregar])
+
+  function nomeExibicao(c: Comissao): string {
+    if (c.profissional?.nome) return c.profissional.nome
+    if (c.usuario_id) return emailPorUsuario[c.usuario_id]?.split('@')[0] ?? '—'
+    return '—'
+  }
 
   const filtradas = comissoes
     .filter(c => !filtroProf || c.profissional_id === filtroProf)
@@ -64,7 +80,9 @@ export default function Comissoes() {
     <div className="page">
       <div style={{ marginBottom: '24px' }}>
         <h1 style={{ fontSize: '24px', color: '#FFFFFF' }}>Comissões</h1>
-        <p style={{ fontSize: '13px', color: '#555', marginTop: '3px' }}>Geradas automaticamente pelas vendas</p>
+        <p style={{ fontSize: '13px', color: '#555', marginTop: '3px' }}>
+          {podeGerenciar ? 'Geradas automaticamente pelas vendas' : 'Suas comissões geradas pelas vendas que você fez'}
+        </p>
       </div>
 
       <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
@@ -81,10 +99,12 @@ export default function Comissoes() {
       </div>
 
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        <select className="input" style={{ width: 'auto' }} value={filtroProf} onChange={e => setFiltroProf(e.target.value)}>
-          <option value="">Todos os profissionais</option>
-          {profissionais.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-        </select>
+        {podeGerenciar && (
+          <select className="input" style={{ width: 'auto' }} value={filtroProf} onChange={e => setFiltroProf(e.target.value)}>
+            <option value="">Todos os profissionais</option>
+            {profissionais.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+          </select>
+        )}
         <div style={{ display: 'flex', gap: '6px' }}>
           {(['todas', 'pendente', 'aprovada', 'paga', 'cancelada'] as FiltroStatus[]).map(f => (
             <button
@@ -111,7 +131,7 @@ export default function Comissoes() {
           fontSize: '10px', fontWeight: 600, color: '#444', textTransform: 'uppercase', letterSpacing: '0.1em',
           background: 'rgba(0,0,0,0.2)',
         }}>
-          <span>Profissional</span><span>Base</span><span>%</span><span>Comissão</span><span>Status</span><span></span>
+          <span>Quem</span><span>Base</span><span>%</span><span>Comissão</span><span>Status</span><span></span>
         </div>
 
         {loading ? (
@@ -130,7 +150,7 @@ export default function Comissoes() {
             }}
           >
             <div>
-              <span style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF' }}>{c.profissional?.nome ?? '—'}</span>
+              <span style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF' }}>{nomeExibicao(c)}</span>
               <p style={{ fontSize: '11px', color: '#444' }}>{formatDate(c.created_at)}</p>
             </div>
             <span style={{ fontSize: '12px', color: '#666' }}>{formatCurrency(c.valor_base)}</span>
@@ -140,10 +160,10 @@ export default function Comissoes() {
             <span style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>{formatCurrency(c.valor_comissao)}</span>
             <span className={STATUS_CLASS[c.status]}>{STATUS_LABEL[c.status]}</span>
             <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-              {PROXIMO_STATUS[c.status] && (
+              {podeGerenciar && PROXIMO_STATUS[c.status] && (
                 <button className="btn btn-secondary btn-sm" onClick={() => avancarStatus(c)}>{PROXIMO_LABEL[c.status]}</button>
               )}
-              {(c.status === 'pendente' || c.status === 'aprovada') && (
+              {podeGerenciar && (c.status === 'pendente' || c.status === 'aprovada') && (
                 <button className="btn btn-icon" title="Cancelar" onClick={() => cancelar(c)}>×</button>
               )}
             </div>

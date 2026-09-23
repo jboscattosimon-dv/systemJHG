@@ -1,11 +1,16 @@
-import { useState, useEffect, useMemo, type KeyboardEvent } from 'react'
+import { useState, useEffect, useCallback, useMemo, type KeyboardEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ShoppingCart, Plus, Minus, Trash2, X, Check, Search, Package, ScanLine } from 'lucide-react'
+import { ShoppingCart, Plus, Minus, Trash2, X, Check, Search, Package, ScanLine, ArrowLeft } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { formatCurrency } from '../lib/utils'
+import { formatCurrency, formatDate } from '../lib/utils'
 import ScannerCamera from '../components/ScannerCamera'
+import VendaDetalheModal from '../components/VendaDetalheModal'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
-import type { Cliente, ItemComanda, PagamentoMetodo, Produto, Profissional } from '../types'
+import { useAuth } from '../hooks/useAuth'
+import { usePerfil } from '../hooks/usePerfil'
+import type { Cliente, Comanda, ItemComanda, PagamentoMetodo, Produto, Profissional } from '../types'
+
+const STATUS_LABEL: Record<string, string> = { fechada: 'Fechada', cancelada: 'Cancelada', aberta: 'Aberta' }
 
 const PAGAMENTOS: { id: PagamentoMetodo; label: string }[] = [
   { id: 'pix',       label: 'Pix'            },
@@ -18,6 +23,37 @@ const PAGAMENTOS: { id: PagamentoMetodo; label: string }[] = [
 function uid() { return Math.random().toString(36).slice(2) }
 
 export default function Vendas() {
+  const { user } = useAuth()
+  const { papel } = usePerfil()
+  const souAtendente = papel === 'atendente'
+  const [modo, setModo] = useState<'lista' | 'nova'>('lista')
+  const [vendas, setVendas] = useState<Comanda[]>([])
+  const [loadingVendas, setLoadingVendas] = useState(true)
+  const [vendaSelecionadaId, setVendaSelecionadaId] = useState<string | null>(null)
+  const [emailPorUsuario, setEmailPorUsuario] = useState<Record<string, string>>({})
+
+  const carregarVendas = useCallback(() => {
+    setLoadingVendas(true)
+    let query = supabase.from('comandas').select('*').order('created_at', { ascending: false }).limit(100)
+    if (souAtendente && user) query = query.eq('usuario_id', user.id)
+    query.then(({ data }) => { setVendas((data ?? []) as Comanda[]); setLoadingVendas(false) })
+  }, [souAtendente, user])
+
+  useEffect(() => {
+    carregarVendas()
+    supabase.rpc('listar_usuarios_basico').then(({ data }) => {
+      if (!data) return
+      const mapa: Record<string, string> = {}
+      ;(data as { usuario_id: string; email: string }[]).forEach(u => { mapa[u.usuario_id] = u.email })
+      setEmailPorUsuario(mapa)
+    })
+  }, [carregarVendas])
+
+  function nomeUsuarioVenda(usuarioId?: string): string {
+    if (!usuarioId) return '—'
+    return emailPorUsuario[usuarioId]?.split('@')[0] ?? '—'
+  }
+
   const [search, setSearch]   = useState('')
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [profissionais, setProfissionais] = useState<Profissional[]>([])
@@ -237,17 +273,119 @@ export default function Vendas() {
     setDescontoValorInput('')
     setTimeout(() => setDone(false), 2500)
     carregarProdutos()
+    carregarVendas()
   }
 
   const modalRef = useModalKeyboard(showPayModal, () => setShowPayModal(false), finalizarVenda)
   const modalTamanhoRef = useModalKeyboard(!!tamanhoPicker, () => setTamanhoPicker(null))
   const modalNovoClienteRef = useModalKeyboard(showNovoCliente, () => setShowNovoCliente(false), salvarNovoCliente)
 
+  if (modo === 'lista') {
+    return (
+      <div className="page">
+        <div className="page-header-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
+          <div>
+            <h1 style={{ fontSize: '24px', color: '#FFFFFF' }}>Vendas</h1>
+            <p style={{ fontSize: '13px', color: '#555', marginTop: '3px' }}>Histórico de vendas da loja</p>
+          </div>
+          <button className="btn btn-primary" onClick={() => setModo('nova')} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Plus size={14} strokeWidth={2.5} /> Incluir Venda
+          </button>
+        </div>
+
+        <div className="card desktop-row" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="list-header" style={{
+            display: 'grid', gridTemplateColumns: '1fr 130px 130px 110px 120px',
+            padding: '10px 24px', borderBottom: '1px solid #222',
+            fontSize: '10px', fontWeight: 600, color: '#444', textTransform: 'uppercase', letterSpacing: '0.1em',
+            background: 'rgba(0,0,0,0.2)',
+          }}>
+            <span>Cliente</span><span>Vendedor</span><span>Pagamento</span><span>Status</span><span>Total</span>
+          </div>
+
+          {loadingVendas ? (
+            <div style={{ padding: '56px', textAlign: 'center', color: '#444', fontSize: '13px' }}>Carregando...</div>
+          ) : vendas.length === 0 ? (
+            <div style={{ padding: '56px', textAlign: 'center', color: '#444', fontSize: '13px' }}>Nenhuma venda registrada ainda.</div>
+          ) : vendas.map((v, i) => (
+            <motion.div
+              key={v.id}
+              className="list-row"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: Math.min(i, 20) * 0.02 }}
+              onClick={() => setVendaSelecionadaId(v.id)}
+              style={{
+                display: 'grid', gridTemplateColumns: '1fr 130px 130px 110px 120px',
+                padding: '14px 24px', alignItems: 'center', cursor: 'pointer',
+                borderBottom: i < vendas.length - 1 ? '1px solid #1F1F1F' : 'none',
+              }}
+            >
+              <div>
+                <span style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF' }}>{v.cliente_nome ?? 'Balcão'}</span>
+                <p style={{ fontSize: '11px', color: '#555' }}>{formatDate(v.data)}</p>
+              </div>
+              <span style={{ fontSize: '12px', color: '#A3A3A3' }}>{nomeUsuarioVenda(v.usuario_id)}</span>
+              <span style={{ fontSize: '12px', color: '#A3A3A3' }}>{PAGAMENTOS.find(p => p.id === v.forma_pagamento)?.label ?? '—'}</span>
+              <span className={v.status === 'fechada' ? 'badge badge-done' : v.status === 'cancelada' ? 'badge badge-canceled' : 'badge badge-pending'}>
+                {STATUS_LABEL[v.status] ?? v.status}
+              </span>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>{formatCurrency(v.total)}</span>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Cards (mobile) */}
+        {!loadingVendas && vendas.length > 0 && (
+          <div className="entity-grid mobile-only-grid" style={{ gap: '16px' }}>
+            {vendas.map((v, i) => (
+              <motion.div
+                key={v.id}
+                className="card entity-card"
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 20) * 0.04 }}
+                onClick={() => setVendaSelecionadaId(v.id)}
+                style={{ cursor: 'pointer' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <p className="entity-title" style={{ fontSize: '14px', color: '#FFFFFF', fontWeight: 600 }}>{v.cliente_nome ?? 'Balcão'}</p>
+                    <p className="entity-subtle" style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>
+                      {formatDate(v.data)} · {nomeUsuarioVenda(v.usuario_id)}
+                    </p>
+                  </div>
+                  <span className={v.status === 'fechada' ? 'badge badge-done' : v.status === 'cancelada' ? 'badge badge-canceled' : 'badge badge-pending'}>
+                    {STATUS_LABEL[v.status] ?? v.status}
+                  </span>
+                </div>
+                <div className="entity-divider" style={{ height: '1px', background: '#222', margin: '14px 0' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12px', color: '#A3A3A3' }}>{PAGAMENTOS.find(p => p.id === v.forma_pagamento)?.label ?? '—'}</span>
+                  <span style={{ fontSize: '16px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(v.total)}</span>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+
+        <AnimatePresence>
+          {vendaSelecionadaId && (
+            <VendaDetalheModal comandaId={vendaSelecionadaId} onClose={() => setVendaSelecionadaId(null)} />
+          )}
+        </AnimatePresence>
+      </div>
+    )
+  }
+
   return (
     <div className="page pdv-layout" style={{ display: 'flex', gap: '24px', height: 'calc(100vh - 64px)', paddingBottom: '0', overflow: 'hidden' }}>
 
       {/* Left — catalog */}
       <div className="pdv-catalog" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        <button
+          onClick={() => setModo('lista')}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#666', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: '14px', flexShrink: 0 }}
+        >
+          <ArrowLeft size={13} /> Vendas
+        </button>
 
         {/* Search */}
         <div className="pdv-toolbar" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', flexShrink: 0 }}>

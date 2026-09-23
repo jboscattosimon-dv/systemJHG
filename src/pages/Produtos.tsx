@@ -82,6 +82,26 @@ function numero(valor: unknown, padrao = 0): number {
   return Number.isFinite(n) ? n : padrao
 }
 
+// created_at é timestamptz — convertemos pro dia local (fuso do
+// navegador) antes de comparar com o filtro de data, senão uma
+// entrada cadastrada perto da meia-noite pode cair no dia errado.
+function dataLocalDoISO(iso: string): string {
+  const d = new Date(iso)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dia = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dia}`
+}
+
+function hojeLocal(offsetDias = 0): string {
+  const d = new Date()
+  d.setDate(d.getDate() + offsetDias)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dia = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dia}`
+}
+
 // Tira acento, deixa minúsculo e sem espaço nas pontas, pra "Preço de Venda à
 // Vista" e "preco de venda a vista" caírem na mesma chave.
 function normalizarCabecalho(s: string): string {
@@ -173,10 +193,18 @@ export default function Produtos() {
   const temTamanhosForm = prodTamanhos.some(t => t.tamanho.trim())
   const totalTamanhosForm = prodTamanhos.filter(t => t.tamanho.trim()).reduce((s, t) => s + (Number(t.quantidade) || 0), 0)
 
-  const produtosFiltrados = produtos.filter(p =>
-    p.nome.toLowerCase().includes(busca.toLowerCase()) ||
-    (p.sku ?? '').toLowerCase().includes(busca.toLowerCase())
-  )
+  const [filtroDataInicio, setFiltroDataInicio] = useState('')
+  const [filtroDataFim, setFiltroDataFim] = useState('')
+
+  const produtosFiltrados = produtos.filter(p => {
+    if (!p.nome.toLowerCase().includes(busca.toLowerCase()) && !(p.sku ?? '').toLowerCase().includes(busca.toLowerCase())) return false
+    if ((filtroDataInicio || filtroDataFim) && p.created_at) {
+      const cadastro = dataLocalDoISO(p.created_at)
+      if (filtroDataInicio && cadastro < filtroDataInicio) return false
+      if (filtroDataFim && cadastro > filtroDataFim) return false
+    }
+    return true
+  })
 
   async function handleImportarArquivo(e: ChangeEvent<HTMLInputElement>) {
     const arquivo = e.target.files?.[0]
@@ -381,6 +409,18 @@ export default function Produtos() {
             </button>
           )}
         </div>
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+        <span style={{ fontSize: '11px', color: '#555' }}>Cadastrado entre</span>
+        <input className="input" type="date" style={{ padding: '6px 10px', fontSize: '12px' }} value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} />
+        <span style={{ fontSize: '11px', color: '#555' }}>e</span>
+        <input className="input" type="date" style={{ padding: '6px 10px', fontSize: '12px' }} value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} />
+        <button className="btn btn-secondary btn-sm" onClick={() => { setFiltroDataInicio(hojeLocal()); setFiltroDataFim(hojeLocal()) }}>Hoje</button>
+        <button className="btn btn-secondary btn-sm" onClick={() => { setFiltroDataInicio(hojeLocal(-1)); setFiltroDataFim(hojeLocal(-1)) }}>Ontem</button>
+        {(filtroDataInicio || filtroDataFim) && (
+          <button className="btn btn-ghost btn-sm" onClick={() => { setFiltroDataInicio(''); setFiltroDataFim('') }}>Limpar</button>
+        )}
       </div>
 
       {error && <p style={{ fontSize: '12px', color: '#666', marginBottom: '16px' }}>{error}</p>}

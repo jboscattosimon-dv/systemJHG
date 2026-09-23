@@ -110,6 +110,7 @@ export interface Comanda {
   id: string
   cliente_id?: string
   cliente_nome?: string
+  usuario_id?: string
   data: string
   status: ComandaStatus
   itens: ItemComanda[]
