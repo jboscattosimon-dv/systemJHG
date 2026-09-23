@@ -1,10 +1,15 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Trash2, X, Package, Check } from 'lucide-react'
+import { Plus, Trash2, X, Package, Check, RotateCcw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency } from '../lib/utils'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
 import type { Produto } from '../types'
+
+// Sugestão padrão de preço à vista: 80% de lucro em cima do valor pago
+// por peça (não em cima do custo já rateado com frete/despesa — é só
+// um ponto de partida rápido, o campo continua livre pra digitar).
+const MARGEM_SUGERIDA = 0.8
 
 interface TamanhoQtd { tamanho: string; quantidade: string }
 
@@ -15,16 +20,14 @@ interface ItemEntrada {
   quantidade: string
   valorPago: string
   tamanhos: TamanhoQtd[]
-  precoVistaManual: string
-  precoPrazoManual: string
-  mostrarPrecoManual: boolean
+  precoVista: string
+  precoVistaAuto: boolean
+  precoPrazo: string
 }
 
 interface ItemCalculado extends ItemEntrada {
   qtdTotal: number
   custoUnitario: number
-  precoVista: number
-  precoPrazo: number | null
 }
 
 interface ItemResultado {
@@ -39,12 +42,16 @@ interface ItemResultado {
 
 function uid() { return Math.random().toString(36).slice(2) }
 function novoItem(): ItemEntrada {
-  return { id: uid(), produtoId: null, nome: '', quantidade: '1', valorPago: '', tamanhos: [], precoVistaManual: '', precoPrazoManual: '', mostrarPrecoManual: false }
+  return { id: uid(), produtoId: null, nome: '', quantidade: '1', valorPago: '', tamanhos: [], precoVista: '', precoVistaAuto: true, precoPrazo: '' }
 }
 function qtdItem(item: ItemEntrada): number {
   return item.tamanhos.length > 0
     ? item.tamanhos.reduce((s, t) => s + (Number(t.quantidade) || 0), 0)
     : Number(item.quantidade) || 0
+}
+function sugestaoPrecoVista(valorPago: string): string {
+  const v = Number(valorPago)
+  return valorPago.trim() && v >= 0 ? (v * (1 + MARGEM_SUGERIDA)).toFixed(2) : ''
 }
 
 export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
@@ -56,8 +63,7 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
   const [buscaAberta, setBuscaAberta] = useState<string | null>(null)
   const [frete, setFrete] = useState('')
   const [despesas, setDespesas] = useState('')
-  const [margemVista, setMargemVista] = useState('')
-  const [margemPrazo, setMargemPrazo] = useState('')
+  const [desconto, setDesconto] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [resultado, setResultado] = useState<ItemResultado[] | null>(null)
@@ -66,30 +72,21 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
     const totalPago = itens.reduce((s, i) => s + (Number(i.valorPago) || 0) * qtdItem(i), 0)
     const freteNum = Number(frete) || 0
     const despesasNum = Number(despesas) || 0
-    const mVista = Number(margemVista) || 0
-    const mPrazo = margemPrazo.trim() ? Number(margemPrazo) : null
+    const descontoNum = Number(desconto) || 0
     return itens.map(item => {
       const qtd = qtdItem(item)
       const valorPago = Number(item.valorPago) || 0
-      const precoVistaManual = item.precoVistaManual.trim() ? Number(item.precoVistaManual) : null
-      const precoPrazoManual = item.precoPrazoManual.trim() ? Number(item.precoPrazoManual) : null
       if (qtd <= 0 || totalPago <= 0) {
-        return { ...item, qtdTotal: qtd, custoUnitario: valorPago, precoVista: precoVistaManual ?? 0, precoPrazo: precoPrazoManual }
+        return { ...item, qtdTotal: qtd, custoUnitario: valorPago }
       }
       const proporcao = (valorPago * qtd) / totalPago
-      const custoUnitario = valorPago + (proporcao * (freteNum + despesasNum)) / qtd
-      return {
-        ...item,
-        qtdTotal: qtd,
-        custoUnitario,
-        precoVista: precoVistaManual ?? custoUnitario * (1 + mVista / 100),
-        precoPrazo: precoPrazoManual ?? (mPrazo != null ? custoUnitario * (1 + mPrazo / 100) : null),
-      }
+      const custoUnitario = valorPago + (proporcao * (freteNum + despesasNum - descontoNum)) / qtd
+      return { ...item, qtdTotal: qtd, custoUnitario }
     })
-  }, [itens, frete, despesas, margemVista, margemPrazo])
+  }, [itens, frete, despesas, desconto])
 
   const totalPago = itensCalculados.reduce((s, i) => s + (Number(i.valorPago) || 0) * i.qtdTotal, 0)
-  const totalExtra = (Number(frete) || 0) + (Number(despesas) || 0)
+  const totalExtra = (Number(frete) || 0) + (Number(despesas) || 0) - (Number(desconto) || 0)
 
   function addItem() {
     setItens(prev => [...prev, novoItem()])
@@ -101,6 +98,19 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
 
   function updateItem(id: string, patch: Partial<ItemEntrada>) {
     setItens(prev => prev.map(i => i.id === id ? { ...i, ...patch } : i))
+  }
+
+  // Enquanto o preço à vista não for editado à mão, acompanha a sugestão
+  // (80% sobre o valor pago) conforme o valor pago muda.
+  function updateValorPago(id: string, valor: string) {
+    setItens(prev => prev.map(i => i.id === id
+      ? { ...i, valorPago: valor, precoVista: i.precoVistaAuto ? sugestaoPrecoVista(valor) : i.precoVista }
+      : i
+    ))
+  }
+
+  function usarSugestaoPreco(id: string) {
+    setItens(prev => prev.map(i => i.id === id ? { ...i, precoVistaAuto: true, precoVista: sugestaoPrecoVista(i.valorPago) } : i))
   }
 
   function selecionarProduto(id: string, p: Produto) {
@@ -127,14 +137,6 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
     setItens(prev => prev.map(i => i.id === itemId ? { ...i, tamanhos: i.tamanhos.filter((_, ti) => ti !== idx) } : i))
   }
 
-  function abrirPrecoManual(itemId: string) {
-    updateItem(itemId, { mostrarPrecoManual: true })
-  }
-
-  function usarPrecoAutomatico(itemId: string) {
-    updateItem(itemId, { mostrarPrecoManual: false, precoVistaManual: '', precoPrazoManual: '' })
-  }
-
   function sugestoes(nome: string): Produto[] {
     if (!nome.trim()) return []
     return produtos.filter(p => p.nome.toLowerCase().includes(nome.toLowerCase())).slice(0, 6)
@@ -144,7 +146,6 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
 
   async function handleSalvar() {
     if (itensValidos.length === 0) { setError('Adicione ao menos um item com nome, quantidade e valor pago.'); return }
-    if (!margemVista.trim()) { setError('Informe a margem à vista.'); return }
     setSaving(true); setError('')
     const { data, error: err } = await supabase.rpc('registrar_entrada_produtos', {
       p_itens: itensValidos.map(i => ({
@@ -152,16 +153,17 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
         nome: i.nome.trim(),
         quantidade: i.qtdTotal,
         valor_pago_unitario: Number(i.valorPago),
-        preco_venda: i.precoVistaManual.trim() ? Number(i.precoVistaManual) : null,
-        preco_venda_prazo: i.precoPrazoManual.trim() ? Number(i.precoPrazoManual) : null,
+        preco_venda: i.precoVista.trim() ? Number(i.precoVista) : null,
+        preco_venda_prazo: i.precoPrazo.trim() ? Number(i.precoPrazo) : null,
         tamanhos: i.tamanhos
           .filter(t => t.tamanho.trim() && Number(t.quantidade) > 0)
           .map(t => ({ tamanho: t.tamanho.trim(), quantidade: Number(t.quantidade) })),
       })),
       p_frete: Number(frete) || 0,
       p_despesas: Number(despesas) || 0,
-      p_margem_vista: Number(margemVista),
-      p_margem_prazo: margemPrazo.trim() ? Number(margemPrazo) : null,
+      p_desconto: Number(desconto) || 0,
+      p_margem_vista: 0,
+      p_margem_prazo: null,
     })
     setSaving(false)
     if (err) { setError(err.message); return }
@@ -192,7 +194,7 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
             <h2 style={{ fontSize: '18px', color: '#FFFFFF' }}>Nova Entrada de Mercadoria</h2>
             {!resultado && (
               <p style={{ fontSize: '12px', color: '#555', marginTop: '3px' }}>
-                Informe o que foi pago por peça, o frete e as despesas — o sistema rateia e sugere o preço à vista e a prazo.
+                O preço à vista já vem sugerido (80% sobre o valor pago) — edite se quiser.
               </p>
             )}
           </div>
@@ -295,8 +297,21 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
                         />
                       )}
                       <input
-                        className="input" style={{ flex: '1 1 110px', minWidth: '100px' }} type="number" min={0} step={0.01} placeholder="Vlr pago"
-                        value={item.valorPago} onChange={e => updateItem(item.id, { valorPago: e.target.value })}
+                        className="input" style={{ flex: '1 1 100px', minWidth: '90px' }} type="number" min={0} step={0.01} placeholder="Vlr pago"
+                        value={item.valorPago} onChange={e => updateValorPago(item.id, e.target.value)}
+                      />
+                      <input
+                        className="input" style={{ flex: '1 1 100px', minWidth: '90px' }} type="number" min={0} step={0.01} placeholder="Preço à vista"
+                        value={item.precoVista} onChange={e => updateItem(item.id, { precoVista: e.target.value, precoVistaAuto: false })}
+                      />
+                      {!item.precoVistaAuto && (
+                        <button type="button" className="btn btn-icon" title="Usar sugestão (80% sobre valor pago)" onClick={() => usarSugestaoPreco(item.id)}>
+                          <RotateCcw size={12} />
+                        </button>
+                      )}
+                      <input
+                        className="input" style={{ flex: '1 1 100px', minWidth: '90px' }} type="number" min={0} step={0.01} placeholder="Preço a prazo"
+                        value={item.precoPrazo} onChange={e => updateItem(item.id, { precoPrazo: e.target.value })}
                       />
                     </div>
 
@@ -323,35 +338,10 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
                       </button>
                     </div>
 
-                    <div style={{ marginTop: '8px' }}>
-                      {item.mostrarPrecoManual ? (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-                          <input
-                            className="input" style={{ flex: '1 1 100px', minWidth: '90px' }} type="number" min={0} step={0.01} placeholder="Preço à vista"
-                            value={item.precoVistaManual} onChange={e => updateItem(item.id, { precoVistaManual: e.target.value })}
-                          />
-                          <input
-                            className="input" style={{ flex: '1 1 100px', minWidth: '90px' }} type="number" min={0} step={0.01} placeholder="Preço a prazo"
-                            value={item.precoPrazoManual} onChange={e => updateItem(item.id, { precoPrazoManual: e.target.value })}
-                          />
-                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => usarPrecoAutomatico(item.id)}>
-                            Usar cálculo automático
-                          </button>
-                        </div>
-                      ) : (
-                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => abrirPrecoManual(item.id)} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Plus size={11} /> Definir preço manualmente
-                        </button>
-                      )}
-                    </div>
-
                     {item.qtdTotal > 0 && Number(item.valorPago) >= 0 && (
                       <p style={{ fontSize: '11px', color: '#555', marginTop: '8px' }}>
                         {usaTamanhos && <>{item.qtdTotal} un total · </>}
-                        Custo rateado <strong style={{ color: '#A3A3A3' }}>{formatCurrency(item.custoUnitario)}</strong>
-                        {' · '}à vista <strong style={{ color: '#FFFFFF' }}>{formatCurrency(item.precoVista)}</strong>
-                        {item.precoPrazo != null && <> · a prazo <strong style={{ color: '#FFFFFF' }}>{formatCurrency(item.precoPrazo)}</strong></>}
-                        {item.mostrarPrecoManual && <span style={{ color: '#777' }}> · definido manualmente</span>}
+                        Custo rateado (c/ frete): <strong style={{ color: '#A3A3A3' }}>{formatCurrency(item.custoUnitario)}</strong>
                       </p>
                     )}
                   </div>
@@ -362,22 +352,18 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-              <div className="field">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
+              <div className="field" style={{ flex: '1 1 130px' }}>
                 <label className="label">Frete</label>
                 <input className="input" type="number" min={0} step={0.01} placeholder="0,00" value={frete} onChange={e => setFrete(e.target.value)} />
               </div>
-              <div className="field">
+              <div className="field" style={{ flex: '1 1 130px' }}>
                 <label className="label">Despesas</label>
                 <input className="input" type="number" min={0} step={0.01} placeholder="0,00" value={despesas} onChange={e => setDespesas(e.target.value)} />
               </div>
-              <div className="field">
-                <label className="label">Margem à vista *</label>
-                <input className="input" type="number" min={0} step={0.01} placeholder="Ex: 100" value={margemVista} onChange={e => setMargemVista(e.target.value)} />
-              </div>
-              <div className="field">
-                <label className="label">Margem a prazo</label>
-                <input className="input" type="number" min={0} step={0.01} placeholder="opcional" value={margemPrazo} onChange={e => setMargemPrazo(e.target.value)} />
+              <div className="field" style={{ flex: '1 1 130px' }}>
+                <label className="label">Desconto</label>
+                <input className="input" type="number" min={0} step={0.01} placeholder="0,00" value={desconto} onChange={e => setDesconto(e.target.value)} />
               </div>
             </div>
 
@@ -387,7 +373,7 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
                 <span style={{ fontSize: '13px', color: '#A3A3A3' }}>{formatCurrency(totalPago)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '12px', color: '#666' }}>Frete + despesas</span>
+                <span style={{ fontSize: '12px', color: '#666' }}>Frete + despesas − desconto</span>
                 <span style={{ fontSize: '13px', color: '#A3A3A3' }}>{formatCurrency(totalExtra)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px', borderTop: '1px solid #262626' }}>
