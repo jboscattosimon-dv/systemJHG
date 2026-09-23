@@ -124,7 +124,7 @@ BEGIN
       UPDATE public.produtos SET
         preco_custo       = ROUND(v_custo_unitario, 2),
         preco_venda       = v_preco_vista,
-        preco_venda_prazo = COALESCE(v_preco_prazo, preco_venda_prazo),
+        preco_venda_prazo = COALESCE(v_preco_prazo, produtos.preco_venda_prazo),
         estoque_atual     = CASE WHEN v_usa_tamanhos OR v_tinha_tamanhos THEN estoque_atual ELSE estoque_atual + v_qtd END
       WHERE id = v_produto_id;
     ELSE

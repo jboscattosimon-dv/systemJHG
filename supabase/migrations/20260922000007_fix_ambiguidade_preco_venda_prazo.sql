@@ -1,13 +1,16 @@
 -- ================================================================
---  Fix: "column reference produto_id is ambiguous" na entrada
+--  Fix: mesma ambiguidade, agora em preco_venda_prazo
 -- ================================================================
--- registrar_entrada_produtos retorna uma coluna chamada produto_id
--- (RETURNS TABLE), o que faz o Postgres criar uma variável implícita
--- com esse nome dentro da função. Duas consultas usavam "produto_id"
--- sem qualificar a tabela, e o Postgres não sabia se era a variável
--- ou a coluna produto_tamanhos.produto_id — daí o erro ao lançar uma
--- entrada de verdade. Mesma assinatura de parâmetros e retorno, só
--- corrige as duas referências.
+-- A migration anterior corrigiu "produto_id" ambíguo, mas ficou outra
+-- ocorrência do mesmo problema: no UPDATE de produto existente,
+-- "COALESCE(v_preco_prazo, preco_venda_prazo)" usava a coluna sem
+-- qualificar — e preco_venda_prazo também é nome de coluna do
+-- RETURNS TABLE, então virou variável ambígua de novo.
+--
+-- Revisei a função inteira contra os 7 nomes de retorno (produto_id,
+-- nome, quantidade, custo_unitario, preco_venda, preco_venda_prazo,
+-- tem_tamanhos) e essa era a única ocorrência que sobrou sem
+-- qualificação. Mesma assinatura de parâmetros e retorno.
 
 CREATE OR REPLACE FUNCTION public.registrar_entrada_produtos(
   p_itens        JSONB,
