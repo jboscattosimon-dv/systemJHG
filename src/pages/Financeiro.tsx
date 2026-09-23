@@ -8,7 +8,7 @@ import { TrendingUp, TrendingDown, DollarSign, Plus, ArrowUpRight, ArrowDownRigh
 import { supabase } from '../lib/supabase'
 import { formatCurrency, formatDate } from '../lib/utils'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
-import { type Periodo, rangeFor } from '../lib/periodo'
+import { rangeFor } from '../lib/periodo'
 import VendaDetalheModal from '../components/VendaDetalheModal'
 import LancamentoDetalheModal from '../components/LancamentoDetalheModal'
 import ContaFinanceiraModal from '../components/ContaFinanceiraModal'
@@ -44,8 +44,6 @@ export default function Financeiro() {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
   const [lancamentoSelecionado, setLancamentoSelecionado] = useState<MovimentoCaixa | null>(null)
-  const [periodo, setPeriodo] = useState<Periodo>('mes')
-  const [ref, setRef] = useState(new Date())
   const [custom, setCustom] = useState({ inicio: new Date().toISOString().split('T')[0], fim: new Date().toISOString().split('T')[0] })
   const [graficoAberto, setGraficoAberto] = useState(() => {
     try { return localStorage.getItem(GRAFICO_KEY) !== '0' } catch { return true }
@@ -55,7 +53,13 @@ export default function Financeiro() {
   const [contaEditando, setContaEditando] = useState<ContaFinanceira | null>(null)
   const [saldoInicialPeriodo, setSaldoInicialPeriodo] = useState(0)
 
-  const [inicio, fim] = rangeFor(periodo, ref, custom)
+  const inicio = custom.inicio
+  const fim = custom.fim
+
+  function irParaMesAtual() {
+    const [mesInicio, mesFim] = rangeFor('mes', new Date(), custom)
+    setCustom({ inicio: mesInicio, fim: mesFim })
+  }
 
   const hoje = new Date().toISOString().split('T')[0]
   const movHoje    = movimentos.filter(m => m.data === hoje)
@@ -172,47 +176,11 @@ export default function Financeiro() {
         </button>
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', marginBottom: '20px' }}>
-        {(['mes', 'trimestre', 'ano', 'personalizado'] as Periodo[]).map(p => (
-          <button
-            key={p}
-            onClick={() => setPeriodo(p)}
-            style={{
-              padding: '6px 14px', borderRadius: '99px', fontFamily: 'inherit',
-              border: periodo === p ? '1px solid #FFFFFF' : '1px solid #2A2A2A',
-              background: periodo === p ? 'rgba(255,255,255,0.08)' : 'transparent',
-              color: periodo === p ? '#FFFFFF' : '#555',
-              fontSize: '12px', cursor: 'pointer', transition: 'all 0.15s', textTransform: 'capitalize',
-            }}
-          >
-            {p}
-          </button>
-        ))}
-        {periodo === 'personalizado' ? (
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: '4px' }}>
-            <input className="input" type="date" style={{ padding: '6px 10px', fontSize: '12px' }} value={custom.inicio} onChange={e => setCustom(c => ({ ...c, inicio: e.target.value }))} />
-            <span style={{ color: '#444', fontSize: '12px' }}>até</span>
-            <input className="input" type="date" style={{ padding: '6px 10px', fontSize: '12px' }} value={custom.fim} onChange={e => setCustom(c => ({ ...c, fim: e.target.value }))} />
-          </div>
-        ) : (
-          <div style={{ display: 'flex', gap: '6px', marginLeft: '4px' }}>
-            <button className="btn btn-secondary btn-sm" onClick={() => setRef(d => {
-              const n = new Date(d)
-              if (periodo === 'mes') n.setMonth(n.getMonth() - 1)
-              else if (periodo === 'trimestre') n.setMonth(n.getMonth() - 3)
-              else n.setFullYear(n.getFullYear() - 1)
-              return n
-            })}>← Anterior</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => setRef(new Date())}>Hoje</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => setRef(d => {
-              const n = new Date(d)
-              if (periodo === 'mes') n.setMonth(n.getMonth() + 1)
-              else if (periodo === 'trimestre') n.setMonth(n.getMonth() + 3)
-              else n.setFullYear(n.getFullYear() + 1)
-              return n
-            })}>Próximo →</button>
-          </div>
-        )}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginBottom: '20px' }}>
+        <input className="input" type="date" style={{ padding: '6px 10px', fontSize: '12px' }} value={custom.inicio} onChange={e => setCustom(c => ({ ...c, inicio: e.target.value }))} />
+        <span style={{ color: '#444', fontSize: '12px' }}>até</span>
+        <input className="input" type="date" style={{ padding: '6px 10px', fontSize: '12px' }} value={custom.fim} onChange={e => setCustom(c => ({ ...c, fim: e.target.value }))} />
+        <button className="btn btn-secondary btn-sm" onClick={irParaMesAtual}>Mês</button>
       </div>
 
       {/* Contas financeiras */}
