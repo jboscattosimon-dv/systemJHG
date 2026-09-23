@@ -1,22 +1,13 @@
 -- ================================================================
---  Entrada de mercadoria — desconto na nota + lançamento no financeiro
+--  Fix: "column reference produto_id is ambiguous" na entrada
 -- ================================================================
--- 1) Desconto (R$) que o fornecedor deu na compra toda. Reduz o total
---    a ratear junto com frete/despesa: custo unitário passa a ser
---    valor_pago + rateio proporcional de (frete + despesas - desconto).
---    Não mexe no preço de venda — só no custo de referência gravado em
---    produtos.preco_custo.
---
--- 2) A entrada inteira (peças + frete + despesas - desconto) agora
---    gera um lançamento de saída em movimentos_caixa, detalhando os
---    itens — aparece direto na tela de Financeiro (que lista todos os
---    movimentos, não só os da sessão de caixa aberta) sem precisar de
---    caixa aberto pra registrar uma entrada de estoque.
---
--- DROP explícito porque muda a lista de parâmetros (novo p_desconto)
--- — CREATE OR REPLACE não permite isso.
-
-DROP FUNCTION IF EXISTS public.registrar_entrada_produtos(JSONB, NUMERIC, NUMERIC, NUMERIC, NUMERIC);
+-- registrar_entrada_produtos retorna uma coluna chamada produto_id
+-- (RETURNS TABLE), o que faz o Postgres criar uma variável implícita
+-- com esse nome dentro da função. Duas consultas usavam "produto_id"
+-- sem qualificar a tabela, e o Postgres não sabia se era a variável
+-- ou a coluna produto_tamanhos.produto_id — daí o erro ao lançar uma
+-- entrada de verdade. Mesma assinatura de parâmetros e retorno, só
+-- corrige as duas referências.
 
 CREATE OR REPLACE FUNCTION public.registrar_entrada_produtos(
   p_itens        JSONB,
