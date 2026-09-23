@@ -326,19 +326,19 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
               <div className="field">
-                <label className="label">Frete (R$)</label>
+                <label className="label">Frete</label>
                 <input className="input" type="number" min={0} step={0.01} placeholder="0,00" value={frete} onChange={e => setFrete(e.target.value)} />
               </div>
               <div className="field">
-                <label className="label">Outras despesas (R$)</label>
+                <label className="label">Despesas</label>
                 <input className="input" type="number" min={0} step={0.01} placeholder="0,00" value={despesas} onChange={e => setDespesas(e.target.value)} />
               </div>
               <div className="field">
-                <label className="label">Margem à vista (%) *</label>
+                <label className="label">Margem à vista *</label>
                 <input className="input" type="number" min={0} step={0.01} placeholder="Ex: 100" value={margemVista} onChange={e => setMargemVista(e.target.value)} />
               </div>
               <div className="field">
-                <label className="label">Margem a prazo (%)</label>
+                <label className="label">Margem a prazo</label>
                 <input className="input" type="number" min={0} step={0.01} placeholder="opcional" value={margemPrazo} onChange={e => setMargemPrazo(e.target.value)} />
               </div>
             </div>
@@ -359,10 +359,12 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
             </div>
 
             {error && <p style={{ fontSize: '12px', color: '#666', marginBottom: '12px' }}>{error}</p>}
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>Cancelar (Esc)</button>
+            <div className="modal-actions" style={{ display: 'flex', gap: '10px' }}>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>
+                Cancelar <span className="shortcut-hint">(Esc)</span>
+              </button>
               <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleSalvar} disabled={saving}>
-                {saving ? 'Lançando...' : 'Lançar Entrada (F10)'}
+                {saving ? 'Lançando...' : <>Lançar Entrada <span className="shortcut-hint">(F10)</span></>}
               </button>
             </div>
           </>
