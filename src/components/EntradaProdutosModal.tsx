@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Trash2, X, Package, Check, RotateCcw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { formatCurrency } from '../lib/utils'
+import { formatCurrency, formatDate } from '../lib/utils'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
-import type { Produto } from '../types'
+import type { ContaFinanceira, Fornecedor, Produto } from '../types'
 
 // Sugestão padrão de preço à vista: 80% de lucro em cima do valor pago
 // por peça (não em cima do custo já rateado com frete/despesa — é só
@@ -67,6 +67,29 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [resultado, setResultado] = useState<ItemResultado[] | null>(null)
+
+  const [contasFinanceiras, setContasFinanceiras] = useState<ContaFinanceira[]>([])
+  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([])
+  const [aVista, setAVista] = useState(true)
+  const [contaFinanceiraId, setContaFinanceiraId] = useState('')
+  const [fornecedorId, setFornecedorId] = useState('')
+  const [dataVencimento, setDataVencimento] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() + 30)
+    return d.toISOString().split('T')[0]
+  })
+  const [parcelas, setParcelas] = useState('1')
+
+  useEffect(() => {
+    supabase.from('contas_financeiras').select('*').eq('ativo', true).order('nome')
+      .then(({ data }) => {
+        const lista = (data ?? []) as ContaFinanceira[]
+        setContasFinanceiras(lista)
+        const padrao = lista.find(c => c.padrao) ?? lista[0]
+        if (padrao) setContaFinanceiraId(padrao.id)
+      })
+    supabase.from('fornecedores').select('*').eq('ativo', true).order('nome')
+      .then(({ data }) => setFornecedores((data ?? []) as Fornecedor[]))
+  }, [])
 
   const itensCalculados: ItemCalculado[] = useMemo(() => {
     const totalPago = itens.reduce((s, i) => s + (Number(i.valorPago) || 0) * qtdItem(i), 0)
@@ -146,6 +169,7 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
 
   async function handleSalvar() {
     if (itensValidos.length === 0) { setError('Adicione ao menos um item com nome, quantidade e valor pago.'); return }
+    if (aVista && !contaFinanceiraId) { setError('Selecione a conta que vai pagar essa entrada.'); return }
     setSaving(true); setError('')
     const { data, error: err } = await supabase.rpc('registrar_entrada_produtos', {
       p_itens: itensValidos.map(i => ({
@@ -164,6 +188,11 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
       p_desconto: Number(desconto) || 0,
       p_margem_vista: 0,
       p_margem_prazo: null,
+      p_a_vista: aVista,
+      p_conta_financeira_id: aVista ? contaFinanceiraId : null,
+      p_fornecedor_id: fornecedorId || null,
+      p_data_vencimento: aVista ? null : dataVencimento,
+      p_parcelas: aVista ? 1 : (Number(parcelas) || 1),
     })
     setSaving(false)
     if (err) { setError(err.message); return }
@@ -226,6 +255,11 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
                 </div>
               ))}
             </div>
+            <p style={{ fontSize: '12px', color: '#555', marginBottom: '14px' }}>
+              {aVista
+                ? `Pago à vista — saiu de ${contasFinanceiras.find(c => c.id === contaFinanceiraId)?.nome ?? 'uma conta'}.`
+                : `A prazo — título criado em Contas a Pagar, vencendo em ${formatDate(dataVencimento)}.`}
+            </p>
             <button className="btn btn-primary btn-full" onClick={concluir}>
               <Check size={14} /> Concluir
             </button>
@@ -365,6 +399,61 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
                 <label className="label">Desconto</label>
                 <input className="input" type="number" min={0} step={0.01} placeholder="0,00" value={desconto} onChange={e => setDesconto(e.target.value)} />
               </div>
+            </div>
+
+            <div className="field" style={{ marginBottom: '14px' }}>
+              <label className="label">Pagamento</label>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                <button
+                  type="button" onClick={() => setAVista(true)}
+                  style={{
+                    flex: 1, padding: '9px 12px', borderRadius: '8px', fontFamily: 'inherit',
+                    border: aVista ? '1px solid #FFFFFF' : '1px solid #2A2A2A',
+                    background: aVista ? 'rgba(255,255,255,0.08)' : 'transparent',
+                    color: aVista ? '#FFFFFF' : '#666', fontSize: '13px', cursor: 'pointer',
+                  }}
+                >
+                  À vista
+                </button>
+                <button
+                  type="button" onClick={() => setAVista(false)}
+                  style={{
+                    flex: 1, padding: '9px 12px', borderRadius: '8px', fontFamily: 'inherit',
+                    border: !aVista ? '1px solid #FFFFFF' : '1px solid #2A2A2A',
+                    background: !aVista ? 'rgba(255,255,255,0.08)' : 'transparent',
+                    color: !aVista ? '#FFFFFF' : '#666', fontSize: '13px', cursor: 'pointer',
+                  }}
+                >
+                  A prazo
+                </button>
+              </div>
+
+              {aVista ? (
+                <select className="input" value={contaFinanceiraId} onChange={e => setContaFinanceiraId(e.target.value)}>
+                  {contasFinanceiras.length === 0 && <option value="">Nenhuma conta cadastrada</option>}
+                  {contasFinanceiras.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <p style={{ fontSize: '11px', color: '#555' }}>
+                    Não sai do caixa agora — cria um título em Contas a Pagar, vencendo em {formatDate(dataVencimento)}.
+                  </p>
+                  <select className="input" value={fornecedorId} onChange={e => setFornecedorId(e.target.value)}>
+                    <option value="">Fornecedor (opcional)</option>
+                    {fornecedores.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                  </select>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <div className="field" style={{ flex: 1 }}>
+                      <label className="label">Vencimento</label>
+                      <input className="input" type="date" value={dataVencimento} onChange={e => setDataVencimento(e.target.value)} />
+                    </div>
+                    <div className="field" style={{ width: '110px' }}>
+                      <label className="label">Parcelas</label>
+                      <input className="input" type="number" min={1} max={24} value={parcelas} onChange={e => setParcelas(e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', marginBottom: '18px', display: 'flex', flexDirection: 'column', gap: '4px' }}>

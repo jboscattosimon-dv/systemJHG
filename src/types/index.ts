@@ -127,6 +127,16 @@ export interface MovimentoCaixa {
   data: string
   comanda_id?: string
   sessao_caixa_id?: string
+  conta_financeira_id?: string
+  created_at: string
+}
+
+export interface ContaFinanceira {
+  id: string
+  nome: string
+  tipo: 'caixa' | 'banco'
+  padrao: boolean
+  ativo: boolean
   created_at: string
 }
 

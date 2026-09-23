@@ -4,14 +4,17 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
 } from 'recharts'
-import { TrendingUp, TrendingDown, DollarSign, Plus, ArrowUpRight, ArrowDownRight, ChevronDown, ChevronUp } from 'lucide-react'
+import { TrendingUp, TrendingDown, DollarSign, Plus, ArrowUpRight, ArrowDownRight, ChevronDown, ChevronUp, Wallet, Pencil } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency, formatDate } from '../lib/utils'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
 import { type Periodo, rangeFor } from '../lib/periodo'
 import VendaDetalheModal from '../components/VendaDetalheModal'
 import LancamentoDetalheModal from '../components/LancamentoDetalheModal'
-import type { MovimentoCaixa } from '../types'
+import ContaFinanceiraModal from '../components/ContaFinanceiraModal'
+import type { MovimentoCaixa, ContaFinanceira } from '../types'
+
+interface SaldoConta { conta_id: string; nome: string; tipo: string; padrao: boolean; saldo: number }
 
 const GRAFICO_KEY = 'financeiro_grafico_aberto'
 
@@ -37,7 +40,7 @@ export default function Financeiro() {
   const [aPagar, setAPagar] = useState({ aberto: 0, vencido: 0 })
   const [aReceber, setAReceber] = useState({ aberto: 0, vencido: 0 })
   const [showModal, setShowModal]   = useState(false)
-  const [form, setForm] = useState({ tipo: 'saida', categoria: '', descricao: '', valor: '' })
+  const [form, setForm] = useState({ tipo: 'saida', categoria: '', descricao: '', valor: '', contaId: '' })
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
   const [lancamentoSelecionado, setLancamentoSelecionado] = useState<MovimentoCaixa | null>(null)
@@ -47,6 +50,10 @@ export default function Financeiro() {
   const [graficoAberto, setGraficoAberto] = useState(() => {
     try { return localStorage.getItem(GRAFICO_KEY) !== '0' } catch { return true }
   })
+  const [contas, setContas] = useState<SaldoConta[]>([])
+  const [showContaModal, setShowContaModal] = useState(false)
+  const [contaEditando, setContaEditando] = useState<ContaFinanceira | null>(null)
+  const [saldoInicialPeriodo, setSaldoInicialPeriodo] = useState(0)
 
   const [inicio, fim] = rangeFor(periodo, ref, custom)
 
@@ -62,6 +69,12 @@ export default function Financeiro() {
       .then(({ data }) => { setMovimentos((data ?? []) as MovimentoCaixa[]) })
   }
 
+  function carregarContas() {
+    supabase.rpc('saldo_contas_financeiras').then(({ data }) => { setContas((data ?? []) as SaldoConta[]) })
+  }
+
+  const saldoAtualConsolidado = contas.reduce((s, c) => s + c.saldo, 0)
+
   function toggleGrafico() {
     setGraficoAberto(prev => {
       const next = !prev
@@ -72,8 +85,17 @@ export default function Financeiro() {
 
   useEffect(() => {
     carregarMovimentos()
+    supabase.from('movimentos_caixa').select('tipo, valor').lt('data', inicio)
+      .then(({ data }) => {
+        const rows = (data ?? []) as { tipo: string; valor: number }[]
+        setSaldoInicialPeriodo(rows.reduce((s, m) => s + (m.tipo === 'entrada' ? m.valor : -m.valor), 0))
+      })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inicio, fim])
+
+  useEffect(() => {
+    carregarContas()
+  }, [])
 
   useEffect(() => {
     const seteDiasAtras = new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0]
@@ -117,11 +139,13 @@ export default function Financeiro() {
     const { error: err } = await supabase.rpc('registrar_movimento_caixa', {
       p_tipo: form.tipo, p_categoria: form.categoria || form.tipo,
       p_descricao: form.descricao, p_valor: Number(form.valor),
+      p_conta_financeira_id: form.contaId || null,
     })
     setSaving(false)
     if (err) { setFormError(err.message); return }
     carregarMovimentos()
-    setForm({ tipo: 'saida', categoria: '', descricao: '', valor: '' })
+    carregarContas()
+    setForm({ tipo: 'saida', categoria: '', descricao: '', valor: '', contaId: '' })
     setShowModal(false)
   }
 
@@ -191,6 +215,39 @@ export default function Financeiro() {
         )}
       </div>
 
+      {/* Contas financeiras */}
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>Contas</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => { setContaEditando(null); setShowContaModal(true) }} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Plus size={11} /> Nova conta
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          {contas.map(c => (
+            <button
+              key={c.conta_id}
+              onClick={() => { setContaEditando({ id: c.conta_id, nome: c.nome, tipo: c.tipo as 'caixa' | 'banco', padrao: c.padrao, ativo: true, created_at: '' }); setShowContaModal(true) }}
+              className="card"
+              style={{ flex: '1 1 180px', minWidth: '160px', textAlign: 'left', cursor: 'pointer', border: '1px solid #252525' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Wallet size={13} style={{ color: '#555' }} />
+                  <span style={{ fontSize: '12px', color: '#A3A3A3' }}>{c.nome}</span>
+                  {c.padrao && <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '99px', border: '1px solid #2A2A2A', color: '#666' }}>padrão</span>}
+                </div>
+                <Pencil size={11} style={{ color: '#444' }} />
+              </div>
+              <p style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF', fontFamily: 'DM Sans, sans-serif' }}>{formatCurrency(c.saldo)}</p>
+            </button>
+          ))}
+          {contas.length === 0 && (
+            <p style={{ fontSize: '12px', color: '#444' }}>Nenhuma conta cadastrada ainda.</p>
+          )}
+        </div>
+      </div>
+
       {/* Stats */}
       <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px', marginBottom: '24px' }}>
         {[
@@ -222,6 +279,57 @@ export default function Financeiro() {
             </motion.div>
           )
         })}
+      </div>
+
+      {/* Fluxo de caixa */}
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <span style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', marginBottom: '16px', display: 'block' }}>
+          Fluxo de Caixa
+        </span>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+          <div>
+            <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>Realizado no período</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#666' }}>Saldo inicial</span>
+                <span style={{ color: '#A3A3A3' }}>{formatCurrency(saldoInicialPeriodo)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#666' }}>+ Entradas realizadas</span>
+                <span style={{ color: '#A3A3A3' }}>{formatCurrency(entradas)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#666' }}>− Saídas realizadas</span>
+                <span style={{ color: '#A3A3A3' }}>{formatCurrency(saidas)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px', borderTop: '1px solid #262626' }}>
+                <span style={{ color: '#A3A3A3', fontWeight: 600 }}>Saldo final</span>
+                <span style={{ color: '#FFFFFF', fontWeight: 700 }}>{formatCurrency(saldoInicialPeriodo + entradas - saidas)}</span>
+              </div>
+            </div>
+          </div>
+          <div>
+            <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>Projetado</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#666' }}>Saldo atual (todas as contas)</span>
+                <span style={{ color: '#A3A3A3' }}>{formatCurrency(saldoAtualConsolidado)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#666' }}>+ A receber (em aberto)</span>
+                <span style={{ color: '#A3A3A3' }}>{formatCurrency(aReceber.aberto)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#666' }}>− A pagar (em aberto)</span>
+                <span style={{ color: '#A3A3A3' }}>{formatCurrency(aPagar.aberto)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px', borderTop: '1px solid #262626' }}>
+                <span style={{ color: '#A3A3A3', fontWeight: 600 }}>Projeção</span>
+                <span style={{ color: '#FFFFFF', fontWeight: 700 }}>{formatCurrency(saldoAtualConsolidado + aReceber.aberto - aPagar.aberto)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Chart */}
@@ -368,6 +476,13 @@ export default function Financeiro() {
                 <label className="label">Valor (R$) *</label>
                 <input className="input" type="number" min={0} step={0.01} placeholder="0,00" value={form.valor} onChange={e => setForm(f => ({ ...f, valor: e.target.value }))} />
               </div>
+              <div className="field">
+                <label className="label">Conta</label>
+                <select className="input" value={form.contaId} onChange={e => setForm(f => ({ ...f, contaId: e.target.value }))}>
+                  <option value="">Conta padrão da loja</option>
+                  {contas.map(c => <option key={c.conta_id} value={c.conta_id}>{c.nome}</option>)}
+                </select>
+              </div>
               {formError && <p style={{ fontSize: '12px', color: '#666' }}>{formError}</p>}
               <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
                 <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowModal(false)}>Cancelar (Esc)</button>
@@ -396,6 +511,16 @@ export default function Financeiro() {
               onDelete={handleExcluirLancamento}
             />
           )
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showContaModal && (
+          <ContaFinanceiraModal
+            conta={contaEditando}
+            onClose={() => setShowContaModal(false)}
+            onSaved={carregarContas}
+          />
         )}
       </AnimatePresence>
     </div>

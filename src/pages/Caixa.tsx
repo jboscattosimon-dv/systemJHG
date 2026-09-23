@@ -6,7 +6,7 @@ import { useAuth } from '../hooks/useAuth'
 import { formatCurrency, formatDate } from '../lib/utils'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
 import VendaDetalheModal from '../components/VendaDetalheModal'
-import type { SessaoCaixa, MovimentoCaixa } from '../types'
+import type { SessaoCaixa, MovimentoCaixa, ContaFinanceira } from '../types'
 
 type ModalTipo = null | 'abrir' | 'sangria' | 'suprimento' | 'fechar'
 
@@ -22,6 +22,17 @@ export default function Caixa() {
   const [error, setError] = useState('')
   const [resultadoFechamento, setResultadoFechamento] = useState<SessaoCaixa | null>(null)
   const [comandaDetalheId, setComandaDetalheId] = useState<string | null>(null)
+  const [contas, setContas] = useState<ContaFinanceira[]>([])
+  const [contaId, setContaId] = useState('')
+
+  useEffect(() => {
+    supabase.from('contas_financeiras').select('*').eq('ativo', true).order('nome')
+      .then(({ data }) => {
+        const lista = (data ?? []) as ContaFinanceira[]
+        setContas(lista)
+        setContaId(lista.find(c => c.padrao)?.id ?? lista[0]?.id ?? '')
+      })
+  }, [])
 
   const carregar = useCallback(async () => {
     if (!user) return
@@ -75,6 +86,7 @@ export default function Caixa() {
       p_categoria: tipo,
       p_descricao: descricaoInput || (tipo === 'sangria' ? 'Sangria' : 'Suprimento'),
       p_valor: Number(valorInput),
+      p_conta_financeira_id: contaId || null,
     })
     setSaving(false)
     if (err) { setError(err.message); return }
@@ -239,6 +251,14 @@ export default function Caixa() {
                   <div className="field">
                     <label className="label">{modal === 'fechar' ? 'Observação' : 'Descrição'}</label>
                     <input className="input" placeholder="opcional" value={descricaoInput} onChange={e => setDescricaoInput(e.target.value)} />
+                  </div>
+                )}
+                {(modal === 'sangria' || modal === 'suprimento') && contas.length > 1 && (
+                  <div className="field">
+                    <label className="label">Conta</label>
+                    <select className="input" value={contaId} onChange={e => setContaId(e.target.value)}>
+                      {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    </select>
                   </div>
                 )}
                 {error && <p style={{ fontSize: '12px', color: '#666' }}>{error}</p>}

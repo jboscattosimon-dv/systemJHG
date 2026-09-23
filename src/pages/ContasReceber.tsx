@@ -4,7 +4,7 @@ import { Plus, X, AlertTriangle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency, formatDate } from '../lib/utils'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
-import type { ContaReceber, Cliente, CategoriaFinanceira, FormaPagamentoCadastro } from '../types'
+import type { ContaReceber, Cliente, CategoriaFinanceira, FormaPagamentoCadastro, ContaFinanceira } from '../types'
 
 type Filtro = 'todas' | 'aberta' | 'vencida' | 'paga'
 
@@ -35,6 +35,8 @@ export default function ContasReceber() {
   const [contaBaixa, setContaBaixa] = useState<ContaReceber | null>(null)
   const [valorBaixa, setValorBaixa] = useState('')
   const [formaBaixa, setFormaBaixa] = useState('')
+  const [contasFinanceiras, setContasFinanceiras] = useState<ContaFinanceira[]>([])
+  const [contaFinanceiraBaixa, setContaFinanceiraBaixa] = useState('')
 
   const carregar = useCallback(() => {
     setLoading(true)
@@ -50,6 +52,12 @@ export default function ContasReceber() {
       .then(({ data }) => { if (data) setCategorias(data as CategoriaFinanceira[]) })
     supabase.from('formas_pagamento').select('*').eq('ativo', true).order('nome')
       .then(({ data }) => { if (data) setFormasPagamento(data as FormaPagamentoCadastro[]) })
+    supabase.from('contas_financeiras').select('*').eq('ativo', true).order('nome')
+      .then(({ data }) => {
+        const lista = (data ?? []) as ContaFinanceira[]
+        setContasFinanceiras(lista)
+        setContaFinanceiraBaixa(lista.find(c => c.padrao)?.id ?? lista[0]?.id ?? '')
+      })
   }, [carregar])
 
   // Contas sintéticas (que agrupam outras) não recebem lançamento direto — só as analíticas (de detalhe).
@@ -92,6 +100,7 @@ export default function ContasReceber() {
       p_conta_id: contaBaixa.id,
       p_valor_pago: Number(valorBaixa),
       p_forma_pagamento_id: formaBaixa || null,
+      p_conta_financeira_id: contaFinanceiraBaixa || null,
     })
     setSaving(false)
     if (err) { setError(err.message); return }
@@ -289,6 +298,14 @@ export default function ContasReceber() {
                     {formasPagamento.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
                   </select>
                 </div>
+                {contasFinanceiras.length > 1 && (
+                  <div className="field">
+                    <label className="label">Conta</label>
+                    <select className="input" value={contaFinanceiraBaixa} onChange={e => setContaFinanceiraBaixa(e.target.value)}>
+                      {contasFinanceiras.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    </select>
+                  </div>
+                )}
                 {error && <p style={{ fontSize: '12px', color: '#666' }}>{error}</p>}
                 <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
                   <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setContaBaixa(null)}>Cancelar (Esc)</button>
