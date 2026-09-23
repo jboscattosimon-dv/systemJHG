@@ -4,7 +4,7 @@
 
 export type AgendamentoStatus = 'pendente' | 'confirmado' | 'em_atendimento' | 'concluido' | 'cancelado' | 'nao_compareceu'
 export type PagamentoMetodo = 'pix' | 'credito' | 'debito' | 'dinheiro' | 'parcelado'
-export type ProdutoCategoria = 'bebidas' | 'pomadas' | 'petiscos' | 'outros'
+export type ProdutoCategoria = 'roupas'
 export type MovimentoTipo = 'entrada' | 'saida'
 export type ComandaStatus = 'aberta' | 'fechada' | 'cancelada'
 

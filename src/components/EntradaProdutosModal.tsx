@@ -4,11 +4,7 @@ import { Plus, Trash2, X, Package, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency } from '../lib/utils'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
-import type { Produto, ProdutoCategoria } from '../types'
-
-const CAT_LABEL: Record<ProdutoCategoria, string> = {
-  bebidas: 'Bebidas', pomadas: 'Pomadas', petiscos: 'Petiscos', outros: 'Outros',
-}
+import type { Produto } from '../types'
 
 interface TamanhoQtd { tamanho: string; quantidade: string }
 
@@ -16,7 +12,6 @@ interface ItemEntrada {
   id: string
   produtoId: string | null
   nome: string
-  categoria: ProdutoCategoria
   quantidade: string
   valorPago: string
   tamanhos: TamanhoQtd[]
@@ -41,7 +36,7 @@ interface ItemResultado {
 
 function uid() { return Math.random().toString(36).slice(2) }
 function novoItem(): ItemEntrada {
-  return { id: uid(), produtoId: null, nome: '', categoria: 'outros', quantidade: '1', valorPago: '', tamanhos: [] }
+  return { id: uid(), produtoId: null, nome: '', quantidade: '1', valorPago: '', tamanhos: [] }
 }
 function qtdItem(item: ItemEntrada): number {
   return item.tamanhos.length > 0
@@ -142,7 +137,6 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
       p_itens: itensValidos.map(i => ({
         produto_id: i.produtoId,
         nome: i.nome.trim(),
-        categoria: i.categoria,
         quantidade: i.qtdTotal,
         valor_pago_unitario: Number(i.valorPago),
         tamanhos: i.tamanhos
@@ -227,7 +221,7 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
                 const usaTamanhos = item.tamanhos.length > 0
                 return (
                   <div key={item.id} style={{ padding: '12px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid #252525' }}>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginBottom: '8px' }}>
                       <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
                         {item.produtoId ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px' }}>
@@ -275,26 +269,20 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
                           </div>
                         )}
                       </div>
-                      {!item.produtoId && (
-                        <select
-                          className="input" style={{ width: '110px', flexShrink: 0 }}
-                          value={item.categoria}
-                          onChange={e => updateItem(item.id, { categoria: e.target.value as ProdutoCategoria })}
-                        >
-                          {Object.entries(CAT_LABEL).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
-                        </select>
-                      )}
+                      <button className="btn btn-icon" onClick={() => removeItem(item.id)} style={{ flexShrink: 0 }}><Trash2 size={12} /></button>
+                    </div>
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                       {!usaTamanhos && (
                         <input
-                          className="input" style={{ width: '64px', flexShrink: 0 }} type="number" min={1} placeholder="Qtd"
+                          className="input" style={{ flex: '1 1 70px', minWidth: '70px' }} type="number" min={1} placeholder="Qtd"
                           value={item.quantidade} onChange={e => updateItem(item.id, { quantidade: e.target.value })}
                         />
                       )}
                       <input
-                        className="input" style={{ width: '100px', flexShrink: 0 }} type="number" min={0} step={0.01} placeholder="Vlr pago"
+                        className="input" style={{ flex: '1 1 110px', minWidth: '100px' }} type="number" min={0} step={0.01} placeholder="Vlr pago"
                         value={item.valorPago} onChange={e => updateItem(item.id, { valorPago: e.target.value })}
                       />
-                      <button className="btn btn-icon" onClick={() => removeItem(item.id)} style={{ flexShrink: 0 }}><Trash2 size={12} /></button>
                     </div>
 
                     <div style={{ marginTop: '10px' }}>

@@ -1,11 +1,7 @@
 import { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { X, Search, ChevronLeft, ChevronRight, Check, Tag } from 'lucide-react'
-import type { Produto, ProdutoCategoria } from '../types'
-
-const CAT_LABEL: Record<ProdutoCategoria, string> = {
-  bebidas: 'Bebidas', pomadas: 'Pomadas', petiscos: 'Petiscos', outros: 'Outros',
-}
+import type { Produto } from '../types'
 
 const POR_PAGINA = 10
 
@@ -15,18 +11,14 @@ export default function SelecionarProdutosEtiquetaModal({ produtos, onClose, onC
   onConfirmar: (selecionados: Produto[]) => void
 }) {
   const [busca, setBusca] = useState('')
-  const [categoria, setCategoria] = useState('')
   const [pagina, setPagina] = useState(1)
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
 
-  const categorias = useMemo(() => [...new Set(produtos.map(p => p.categoria))], [produtos])
-
   const filtrados = useMemo(() =>
     produtos.filter(p =>
-      (!busca || p.nome.toLowerCase().includes(busca.toLowerCase()) || (p.sku ?? '').toLowerCase().includes(busca.toLowerCase())) &&
-      (!categoria || p.categoria === categoria)
+      !busca || p.nome.toLowerCase().includes(busca.toLowerCase()) || (p.sku ?? '').toLowerCase().includes(busca.toLowerCase())
     ),
-    [produtos, busca, categoria]
+    [produtos, busca]
   )
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA))
@@ -81,14 +73,6 @@ export default function SelecionarProdutosEtiquetaModal({ produtos, onClose, onC
               autoComplete="off"
             />
           </div>
-          <select
-            className="input" style={{ width: '160px' }}
-            value={categoria}
-            onChange={e => { setCategoria(e.target.value); setPagina(1) }}
-          >
-            <option value="">Todas categorias</option>
-            {categorias.map(c => <option key={c} value={c}>{CAT_LABEL[c]}</option>)}
-          </select>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexShrink: 0 }}>

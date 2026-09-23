@@ -9,11 +9,7 @@ import EntradaProdutosModal from '../components/EntradaProdutosModal'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
 import { useHeaderBusca } from '../hooks/useHeaderBusca'
 import { usePerfil } from '../hooks/usePerfil'
-import type { Produto, ProdutoCategoria } from '../types'
-
-const CAT_LABEL: Record<ProdutoCategoria, string> = {
-  bebidas: 'Bebidas', pomadas: 'Pomadas', petiscos: 'Petiscos', outros: 'Outros',
-}
+import type { Produto } from '../types'
 
 const COLUNAS_IMPORTACAO = [
   'Nome', 'Tamanho', 'Estoque', 'Preço de Custo', 'Preço de Venda à Vista', 'Preço de Venda a Prazo',
@@ -154,7 +150,7 @@ export default function Produtos() {
   const [showProdModal, setShowProdModal] = useState(false)
   const [editProdId, setEditProdId] = useState<string | null>(null)
   const [prodForm, setProdForm] = useState({
-    nome: '', categoria: 'bebidas' as ProdutoCategoria, sku: '', unidade: 'un',
+    nome: '', sku: '', unidade: 'un',
     preco_custo: '', preco_venda: '', preco_venda_prazo: '', estoque_atual: '', estoque_minimo: '', estoque_maximo: '',
     comissao_percentual: '', foto_url: '',
   })
@@ -294,7 +290,7 @@ export default function Produtos() {
 
     const temTamanhos = prodTamanhos.some(t => t.tamanho.trim())
     const payload: Record<string, unknown> = {
-      nome: prodForm.nome, categoria: prodForm.categoria,
+      nome: prodForm.nome, categoria: 'roupas',
       sku: prodForm.sku || null,
       unidade: prodForm.unidade || 'un',
       preco_custo: Number(prodForm.preco_custo) || 0,
@@ -325,7 +321,7 @@ export default function Produtos() {
 
   function abrirNovoProd() {
     setEditProdId(null)
-    setProdForm({ nome: '', categoria: 'bebidas', sku: '', unidade: 'un', preco_custo: '', preco_venda: '', preco_venda_prazo: '', estoque_atual: '', estoque_minimo: '', estoque_maximo: '', comissao_percentual: '', foto_url: '' })
+    setProdForm({ nome: '', sku: '', unidade: 'un', preco_custo: '', preco_venda: '', preco_venda_prazo: '', estoque_atual: '', estoque_minimo: '', estoque_maximo: '', comissao_percentual: '', foto_url: '' })
     setProdTamanhos([])
     setFotoFile(null)
     setFotoPreview(null)
@@ -336,7 +332,7 @@ export default function Produtos() {
   function abrirEdicaoProd(p: Produto) {
     setEditProdId(p.id)
     setProdForm({
-      nome: p.nome, categoria: p.categoria, sku: p.sku ?? '', unidade: p.unidade,
+      nome: p.nome, sku: p.sku ?? '', unidade: p.unidade,
       preco_custo: String(p.preco_custo), preco_venda: String(p.preco_venda),
       preco_venda_prazo: p.preco_venda_prazo != null ? String(p.preco_venda_prazo) : '',
       estoque_atual: String(p.estoque_atual), estoque_minimo: p.estoque_minimo != null ? String(p.estoque_minimo) : '',
@@ -442,7 +438,7 @@ export default function Produtos() {
       <div className="card desktop-row" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="list-header" style={{
           display: 'grid',
-          gridTemplateColumns: '28px 1fr 100px 120px 120px 90px 80px 76px',
+          gridTemplateColumns: '28px 1fr 120px 120px 90px 80px 76px',
           padding: '10px 24px',
           borderBottom: '1px solid #222',
           fontSize: '10px', fontWeight: 600, color: '#444',
@@ -451,7 +447,7 @@ export default function Produtos() {
           alignItems: 'center',
         }}>
           <input type="checkbox" checked={produtosFiltrados.length > 0 && selecionados.size === produtosFiltrados.length} onChange={toggleSelecionarTodos} />
-          <span>Produto</span><span>Categoria</span><span>Custo</span>
+          <span>Produto</span><span>Custo</span>
           <span>Venda</span><span>Estoque</span><span>Status</span><span></span>
         </div>
 
@@ -472,7 +468,7 @@ export default function Produtos() {
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '28px 1fr 100px 120px 120px 90px 80px 76px',
+                gridTemplateColumns: '28px 1fr 120px 120px 90px 80px 76px',
                 padding: '14px 24px',
                 borderBottom: i < produtosFiltrados.length - 1 ? '1px solid #1F1F1F' : 'none',
                 alignItems: 'center',
@@ -511,7 +507,6 @@ export default function Produtos() {
                   )}
                 </div>
               </div>
-              <span style={{ fontSize: '12px', color: '#666', textTransform: 'capitalize' }}>{CAT_LABEL[p.categoria]}</span>
               <span style={{ fontSize: '13px', color: '#555' }}>{formatCurrency(p.preco_custo)}</span>
               <span style={{ fontSize: '13px', color: '#A3A3A3', fontWeight: 500 }}>{formatCurrency(p.preco_venda)}</span>
               <span style={{ fontSize: '14px', fontWeight: 700, color: '#A3A3A3' }}>
@@ -594,10 +589,6 @@ export default function Produtos() {
                 <div className="entity-divider" style={{ height: '1px', background: '#222', margin: '14px 0' }} />
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
-                  <div>
-                    <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>Categoria</p>
-                    <p style={{ fontSize: '13px', color: '#A3A3A3', textTransform: 'capitalize' }}>{CAT_LABEL[p.categoria]}</p>
-                  </div>
                   <div>
                     <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>Estoque</p>
                     <p style={{ fontSize: '13px', color: '#A3A3A3' }}>
@@ -700,20 +691,9 @@ export default function Produtos() {
                     <input ref={fotoInputRef} type="file" accept="image/*" onChange={handleFotoChange} style={{ display: 'none' }} />
                   </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div className="field">
-                    <label className="label">Categoria</label>
-                    <select className="input" value={prodForm.categoria} onChange={e => setProdForm(f => ({ ...f, categoria: e.target.value as ProdutoCategoria }))}>
-                      <option value="bebidas">Bebidas</option>
-                      <option value="pomadas">Pomadas</option>
-                      <option value="petiscos">Petiscos</option>
-                      <option value="outros">Outros</option>
-                    </select>
-                  </div>
-                  <div className="field">
-                    <label className="label">SKU / Código</label>
-                    <input className="input" placeholder="opcional" value={prodForm.sku} onChange={e => setProdForm(f => ({ ...f, sku: e.target.value }))} />
-                  </div>
+                <div className="field">
+                  <label className="label">SKU / Código</label>
+                  <input className="input" placeholder="opcional" value={prodForm.sku} onChange={e => setProdForm(f => ({ ...f, sku: e.target.value }))} />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                   <div className="field">
@@ -867,7 +847,6 @@ export default function Produtos() {
                 }}>
                   {produtoDetalhe.ativo ? 'Ativo' : 'Inativo'}
                 </span>
-                <span style={{ fontSize: '11px', color: '#555', textTransform: 'capitalize' }}>{CAT_LABEL[produtoDetalhe.categoria]}</span>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '20px' }}>
