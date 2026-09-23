@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, type ChangeEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, X, Package, Check, Tag, Pencil, Download, Upload, Trash2, FileSpreadsheet, ImagePlus } from 'lucide-react'
+import { Plus, X, Package, Check, Tag, Pencil, Download, Upload, Trash2, FileSpreadsheet, ImagePlus, ClipboardList } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { formatCurrency } from '../lib/utils'
 import EtiquetaModal from '../components/EtiquetaModal'
+import EntradaProdutosModal from '../components/EntradaProdutosModal'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
 import { useHeaderBusca } from '../hooks/useHeaderBusca'
 import { usePerfil } from '../hooks/usePerfil'
@@ -171,6 +172,7 @@ export default function Produtos() {
   const [importando, setImportando] = useState(false)
   const [resultadoImportacao, setResultadoImportacao] = useState<{ ok: number; erros: string[] } | null>(null)
   const [produtoDetalhe, setProdutoDetalhe] = useState<Produto | null>(null)
+  const [showEntrada, setShowEntrada] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const temTamanhosForm = prodTamanhos.some(t => t.tamanho.trim())
@@ -397,6 +399,9 @@ export default function Produtos() {
           </button>
           <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleImportarArquivo} style={{ display: 'none' }} />
           <div style={{ width: '1px', height: '20px', background: '#252525', margin: '0 4px' }} />
+          <button className="btn btn-secondary" onClick={() => setShowEntrada(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ClipboardList size={14} /> Nova Entrada
+          </button>
           <button className="btn btn-primary" onClick={abrirNovoProd} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Plus size={14} strokeWidth={2.5} /> Novo Produto
           </button>
@@ -792,6 +797,16 @@ export default function Produtos() {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showEntrada && (
+          <EntradaProdutosModal
+            produtos={produtos}
+            onClose={() => setShowEntrada(false)}
+            onSuccess={carregarProdutos}
+          />
         )}
       </AnimatePresence>
 

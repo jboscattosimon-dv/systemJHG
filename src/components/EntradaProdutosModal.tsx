@@ -1,0 +1,327 @@
+import { useMemo, useState } from 'react'
+import { motion } from 'framer-motion'
+import { Plus, Trash2, X, Package, Check } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import { formatCurrency } from '../lib/utils'
+import { useModalKeyboard } from '../hooks/useModalKeyboard'
+import type { Produto, ProdutoCategoria } from '../types'
+
+const CAT_LABEL: Record<ProdutoCategoria, string> = {
+  bebidas: 'Bebidas', pomadas: 'Pomadas', petiscos: 'Petiscos', outros: 'Outros',
+}
+
+interface ItemEntrada {
+  id: string
+  produtoId: string | null
+  nome: string
+  categoria: ProdutoCategoria
+  quantidade: string
+  valorPago: string
+}
+
+interface ItemCalculado extends ItemEntrada {
+  custoUnitario: number
+  precoVista: number
+  precoPrazo: number | null
+}
+
+interface ItemResultado {
+  produto_id: string
+  nome: string
+  quantidade: number
+  custo_unitario: number
+  preco_venda: number
+  preco_venda_prazo: number | null
+  tem_tamanhos: boolean
+}
+
+function uid() { return Math.random().toString(36).slice(2) }
+function novoItem(): ItemEntrada { return { id: uid(), produtoId: null, nome: '', categoria: 'outros', quantidade: '1', valorPago: '' } }
+
+export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
+  produtos: Produto[]
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [itens, setItens] = useState<ItemEntrada[]>([novoItem()])
+  const [buscaAberta, setBuscaAberta] = useState<string | null>(null)
+  const [frete, setFrete] = useState('')
+  const [despesas, setDespesas] = useState('')
+  const [margemVista, setMargemVista] = useState('')
+  const [margemPrazo, setMargemPrazo] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [resultado, setResultado] = useState<ItemResultado[] | null>(null)
+
+  const itensCalculados: ItemCalculado[] = useMemo(() => {
+    const totalPago = itens.reduce((s, i) => s + (Number(i.valorPago) || 0) * (Number(i.quantidade) || 0), 0)
+    const freteNum = Number(frete) || 0
+    const despesasNum = Number(despesas) || 0
+    const mVista = Number(margemVista) || 0
+    const mPrazo = margemPrazo.trim() ? Number(margemPrazo) : null
+    return itens.map(item => {
+      const qtd = Number(item.quantidade) || 0
+      const valorPago = Number(item.valorPago) || 0
+      if (qtd <= 0 || totalPago <= 0) {
+        return { ...item, custoUnitario: valorPago, precoVista: 0, precoPrazo: null }
+      }
+      const proporcao = (valorPago * qtd) / totalPago
+      const custoUnitario = valorPago + (proporcao * (freteNum + despesasNum)) / qtd
+      return {
+        ...item,
+        custoUnitario,
+        precoVista: custoUnitario * (1 + mVista / 100),
+        precoPrazo: mPrazo != null ? custoUnitario * (1 + mPrazo / 100) : null,
+      }
+    })
+  }, [itens, frete, despesas, margemVista, margemPrazo])
+
+  const totalPago = itensCalculados.reduce((s, i) => s + (Number(i.valorPago) || 0) * (Number(i.quantidade) || 0), 0)
+  const totalExtra = (Number(frete) || 0) + (Number(despesas) || 0)
+
+  function addItem() {
+    setItens(prev => [...prev, novoItem()])
+  }
+
+  function removeItem(id: string) {
+    setItens(prev => prev.filter(i => i.id !== id))
+  }
+
+  function updateItem(id: string, patch: Partial<ItemEntrada>) {
+    setItens(prev => prev.map(i => i.id === id ? { ...i, ...patch } : i))
+  }
+
+  function selecionarProduto(id: string, p: Produto) {
+    updateItem(id, { produtoId: p.id, nome: p.nome })
+    setBuscaAberta(null)
+  }
+
+  function limparSelecao(id: string) {
+    updateItem(id, { produtoId: null, nome: '' })
+  }
+
+  function sugestoes(nome: string): Produto[] {
+    if (!nome.trim()) return []
+    return produtos.filter(p => p.nome.toLowerCase().includes(nome.toLowerCase())).slice(0, 6)
+  }
+
+  const itensValidos = itensCalculados.filter(i => i.nome.trim() && Number(i.quantidade) > 0 && Number(i.valorPago) >= 0)
+
+  async function handleSalvar() {
+    if (itensValidos.length === 0) { setError('Adicione ao menos um item com nome, quantidade e valor pago.'); return }
+    if (!margemVista.trim()) { setError('Informe a margem à vista.'); return }
+    setSaving(true); setError('')
+    const { data, error: err } = await supabase.rpc('registrar_entrada_produtos', {
+      p_itens: itensValidos.map(i => ({
+        produto_id: i.produtoId,
+        nome: i.nome.trim(),
+        categoria: i.categoria,
+        quantidade: Number(i.quantidade),
+        valor_pago_unitario: Number(i.valorPago),
+      })),
+      p_frete: Number(frete) || 0,
+      p_despesas: Number(despesas) || 0,
+      p_margem_vista: Number(margemVista),
+      p_margem_prazo: margemPrazo.trim() ? Number(margemPrazo) : null,
+    })
+    setSaving(false)
+    if (err) { setError(err.message); return }
+    setResultado((data ?? []) as ItemResultado[])
+    onSuccess()
+  }
+
+  function concluir() {
+    onClose()
+  }
+
+  const modalRef = useModalKeyboard(true, onClose, resultado ? undefined : handleSalvar)
+
+  return (
+    <motion.div
+      style={{ position: 'fixed', inset: 0, zIndex: 55, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        ref={modalRef}
+        className="card"
+        style={{ width: '100%', maxWidth: '680px', padding: '28px', maxHeight: '88vh', overflowY: 'auto', overflowX: 'hidden' }}
+        initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 16 }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+          <div>
+            <h2 style={{ fontSize: '18px', color: '#FFFFFF' }}>Nova Entrada de Mercadoria</h2>
+            {!resultado && (
+              <p style={{ fontSize: '12px', color: '#555', marginTop: '3px' }}>
+                Informe o que foi pago por peça, o frete e as despesas — o sistema rateia e sugere o preço à vista e a prazo.
+              </p>
+            )}
+          </div>
+          <button className="btn btn-icon" onClick={onClose}><X size={14} /></button>
+        </div>
+
+        {resultado ? (
+          <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', margin: '18px 0' }}>
+              {resultado.map(r => (
+                <div key={r.produto_id} style={{
+                  display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px',
+                  borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid #252525',
+                }}>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: '#1F1F1F', border: '1px solid #2A2A2A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Package size={13} style={{ color: '#555' }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF' }}>{r.nome}</p>
+                    <p style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>
+                      +{r.quantidade} un · custo {formatCurrency(r.custo_unitario)}
+                      {r.tem_tamanhos && <span style={{ color: '#777' }}> · tem tamanhos, ajuste o estoque em Produtos</span>}
+                    </p>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <p style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>{formatCurrency(r.preco_venda)}</p>
+                    {r.preco_venda_prazo != null && <p style={{ fontSize: '11px', color: '#555' }}>{formatCurrency(r.preco_venda_prazo)} a prazo</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button className="btn btn-primary btn-full" onClick={concluir}>
+              <Check size={14} /> Concluir
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', margin: '18px 0' }}>
+              {itensCalculados.map(item => {
+                const lista = buscaAberta === item.id ? sugestoes(item.nome) : []
+                return (
+                  <div key={item.id} style={{ padding: '12px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid #252525' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+                        {item.produtoId ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                            <span style={{ flex: 1, fontSize: '13px', color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nome}</span>
+                            <span style={{ fontSize: '10px', color: '#555', flexShrink: 0 }}>existente</span>
+                            <button onClick={() => limparSelecao(item.id)} style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', padding: '2px', display: 'flex', flexShrink: 0 }}>
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ) : (
+                          <input
+                            className="input"
+                            placeholder="Nome do produto (novo ou existente)"
+                            value={item.nome}
+                            onChange={e => updateItem(item.id, { nome: e.target.value })}
+                            onFocus={() => setBuscaAberta(item.id)}
+                            onBlur={() => setTimeout(() => setBuscaAberta(prev => prev === item.id ? null : prev), 150)}
+                            autoComplete="off"
+                          />
+                        )}
+                        {lista.length > 0 && (
+                          <div style={{
+                            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 10,
+                            display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '160px', overflowY: 'auto',
+                            background: '#1F1F1F', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px',
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                          }}>
+                            {lista.map(p => (
+                              <button
+                                key={p.id}
+                                onMouseDown={e => e.preventDefault()}
+                                onClick={() => selecionarProduto(item.id, p)}
+                                style={{
+                                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
+                                  width: '100%', padding: '7px 9px', borderRadius: '6px', border: 'none', background: 'transparent',
+                                  color: '#FFFFFF', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                              >
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome}</span>
+                                <span style={{ fontSize: '10px', color: '#555', flexShrink: 0 }}>custo atual {formatCurrency(p.preco_custo)}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {!item.produtoId && (
+                        <select
+                          className="input" style={{ width: '110px', flexShrink: 0 }}
+                          value={item.categoria}
+                          onChange={e => updateItem(item.id, { categoria: e.target.value as ProdutoCategoria })}
+                        >
+                          {Object.entries(CAT_LABEL).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+                        </select>
+                      )}
+                      <input
+                        className="input" style={{ width: '64px', flexShrink: 0 }} type="number" min={1} placeholder="Qtd"
+                        value={item.quantidade} onChange={e => updateItem(item.id, { quantidade: e.target.value })}
+                      />
+                      <input
+                        className="input" style={{ width: '100px', flexShrink: 0 }} type="number" min={0} step={0.01} placeholder="Vlr pago"
+                        value={item.valorPago} onChange={e => updateItem(item.id, { valorPago: e.target.value })}
+                      />
+                      <button className="btn btn-icon" onClick={() => removeItem(item.id)} style={{ flexShrink: 0 }}><Trash2 size={12} /></button>
+                    </div>
+                    {Number(item.quantidade) > 0 && Number(item.valorPago) >= 0 && (
+                      <p style={{ fontSize: '11px', color: '#555', marginTop: '8px' }}>
+                        Custo rateado <strong style={{ color: '#A3A3A3' }}>{formatCurrency(item.custoUnitario)}</strong>
+                        {' · '}à vista <strong style={{ color: '#FFFFFF' }}>{formatCurrency(item.precoVista)}</strong>
+                        {item.precoPrazo != null && <> · a prazo <strong style={{ color: '#FFFFFF' }}>{formatCurrency(item.precoPrazo)}</strong></>}
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+              <button className="btn btn-ghost btn-sm" onClick={addItem} style={{ display: 'flex', alignItems: 'center', gap: '4px', width: 'fit-content' }}>
+                <Plus size={11} /> Adicionar item
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+              <div className="field">
+                <label className="label">Frete (R$)</label>
+                <input className="input" type="number" min={0} step={0.01} placeholder="0,00" value={frete} onChange={e => setFrete(e.target.value)} />
+              </div>
+              <div className="field">
+                <label className="label">Outras despesas (R$)</label>
+                <input className="input" type="number" min={0} step={0.01} placeholder="0,00" value={despesas} onChange={e => setDespesas(e.target.value)} />
+              </div>
+              <div className="field">
+                <label className="label">Margem à vista (%) *</label>
+                <input className="input" type="number" min={0} step={0.01} placeholder="Ex: 100" value={margemVista} onChange={e => setMargemVista(e.target.value)} />
+              </div>
+              <div className="field">
+                <label className="label">Margem a prazo (%)</label>
+                <input className="input" type="number" min={0} step={0.01} placeholder="opcional" value={margemPrazo} onChange={e => setMargemPrazo(e.target.value)} />
+              </div>
+            </div>
+
+            <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', marginBottom: '18px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '12px', color: '#666' }}>Total pago nas peças</span>
+                <span style={{ fontSize: '13px', color: '#A3A3A3' }}>{formatCurrency(totalPago)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '12px', color: '#666' }}>Frete + despesas</span>
+                <span style={{ fontSize: '13px', color: '#A3A3A3' }}>{formatCurrency(totalExtra)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px', borderTop: '1px solid #262626' }}>
+                <span style={{ fontSize: '13px', color: '#A3A3A3' }}>Total da entrada</span>
+                <span style={{ fontSize: '16px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(totalPago + totalExtra)}</span>
+              </div>
+            </div>
+
+            {error && <p style={{ fontSize: '12px', color: '#666', marginBottom: '12px' }}>{error}</p>}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>Cancelar (Esc)</button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleSalvar} disabled={saving}>
+                {saving ? 'Lançando...' : 'Lançar Entrada (F10)'}
+              </button>
+            </div>
+          </>
+        )}
+      </motion.div>
+    </motion.div>
+  )
+}
