@@ -9,6 +9,7 @@ import EntradaProdutosModal from '../components/EntradaProdutosModal'
 import ProdutoFotosModal from '../components/ProdutoFotosModal'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
 import { useHeaderBusca } from '../hooks/useHeaderBusca'
+import { usePerfil } from '../hooks/usePerfil'
 import type { Produto } from '../types'
 
 const COLUNAS_IMPORTACAO = [
@@ -144,6 +145,8 @@ async function lerPlanilhaProdutos(arquivo: File): Promise<{ validas: LinhaImpor
 }
 
 export default function Produtos() {
+  const { papel } = usePerfil()
+  const souAtendente = papel === 'atendente'
   const [produtos, setProdutos] = useState<Produto[]>([])
   const { headerBusca: busca } = useHeaderBusca()
   const [showProdModal, setShowProdModal] = useState(false)
@@ -220,13 +223,19 @@ export default function Produtos() {
   }
 
   function carregarProdutos() {
-    return supabase.from('produtos').select('*, tamanhos:produto_tamanhos(*)').order('nome')
-      .then(({ data }) => { setProdutos((data ?? []) as Produto[]); setLoading(false) })
+    // Atendente não recebe preco_custo nem na resposta da API — não é só
+    // esconder na tela, o dado nem sai do banco pra essa conta.
+    const colunas: string = souAtendente
+      ? 'id, nome, categoria, sku, unidade, preco_venda, preco_venda_prazo, estoque_atual, estoque_minimo, estoque_maximo, comissao_percentual, ativo, foto_url, created_at, empresa_id, tamanhos:produto_tamanhos(*)'
+      : '*, tamanhos:produto_tamanhos(*)'
+    return supabase.from('produtos').select(colunas).order('nome')
+      .then(({ data }) => { setProdutos((data ?? []) as unknown as Produto[]); setLoading(false) })
   }
 
   useEffect(() => {
     carregarProdutos()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [souAtendente])
 
   function addTamanhoRow() {
     setProdTamanhos(prev => [...prev, { tamanho: '', quantidade: '0' }])
@@ -261,13 +270,15 @@ export default function Produtos() {
       nome: prodForm.nome, categoria: 'roupas',
       sku: prodForm.sku || null,
       unidade: prodForm.unidade || 'un',
-      preco_custo: Number(prodForm.preco_custo) || 0,
       preco_venda: Number(prodForm.preco_venda),
       preco_venda_prazo: prodForm.preco_venda_prazo ? Number(prodForm.preco_venda_prazo) : null,
       estoque_minimo: prodForm.estoque_minimo ? Number(prodForm.estoque_minimo) : null,
       estoque_maximo: prodForm.estoque_maximo ? Number(prodForm.estoque_maximo) : null,
       comissao_percentual: prodForm.comissao_percentual ? Number(prodForm.comissao_percentual) : null,
     }
+    // Atendente nunca define/altera custo — omitido do payload em vez de
+    // mandar 0 (senão zerava o custo real ao editar qualquer outro campo).
+    if (!souAtendente) payload.preco_custo = Number(prodForm.preco_custo) || 0
     // Com tamanhos cadastrados, o total vem do trigger (soma dos tamanhos)
     // depois que a gente sincronizar produto_tamanhos logo abaixo.
     if (!temTamanhos) payload.estoque_atual = Number(prodForm.estoque_atual) || 0
@@ -298,7 +309,7 @@ export default function Produtos() {
     setEditProdId(p.id)
     setProdForm({
       nome: p.nome, sku: p.sku ?? '', unidade: p.unidade,
-      preco_custo: String(p.preco_custo), preco_venda: String(p.preco_venda),
+      preco_custo: p.preco_custo != null ? String(p.preco_custo) : '', preco_venda: String(p.preco_venda),
       preco_venda_prazo: p.preco_venda_prazo != null ? String(p.preco_venda_prazo) : '',
       estoque_atual: String(p.estoque_atual), estoque_minimo: p.estoque_minimo != null ? String(p.estoque_minimo) : '',
       estoque_maximo: p.estoque_maximo != null ? String(p.estoque_maximo) : '',
@@ -354,10 +365,12 @@ export default function Produtos() {
             <Upload size={13} />
           </button>
           <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleImportarArquivo} style={{ display: 'none' }} />
-          <div style={{ width: '1px', height: '20px', background: '#252525', margin: '0 4px' }} />
-          <button className="btn btn-secondary" onClick={() => setShowEntrada(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ClipboardList size={14} /> Nova Entrada
-          </button>
+          {!souAtendente && <div style={{ width: '1px', height: '20px', background: '#252525', margin: '0 4px' }} />}
+          {!souAtendente && (
+            <button className="btn btn-secondary" onClick={() => setShowEntrada(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ClipboardList size={14} /> Nova Entrada
+            </button>
+          )}
           <button className="btn btn-primary" onClick={abrirNovoProd} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Plus size={14} strokeWidth={2.5} /> Novo Produto
           </button>
@@ -398,7 +411,7 @@ export default function Produtos() {
       <div className="card desktop-row" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="list-header" style={{
           display: 'grid',
-          gridTemplateColumns: '28px 1fr 120px 120px 90px 80px 76px',
+          gridTemplateColumns: souAtendente ? '28px 1fr 120px 90px 80px 76px' : '28px 1fr 120px 120px 90px 80px 76px',
           padding: '10px 24px',
           borderBottom: '1px solid #222',
           fontSize: '10px', fontWeight: 600, color: '#444',
@@ -407,7 +420,7 @@ export default function Produtos() {
           alignItems: 'center',
         }}>
           <input type="checkbox" checked={produtosFiltrados.length > 0 && selecionados.size === produtosFiltrados.length} onChange={toggleSelecionarTodos} />
-          <span>Produto</span><span>Custo</span>
+          <span>Produto</span>{!souAtendente && <span>Custo</span>}
           <span>Venda</span><span>Estoque</span><span>Status</span><span></span>
         </div>
 
@@ -420,7 +433,7 @@ export default function Produtos() {
             {busca ? 'Nenhum produto encontrado.' : 'Nenhum produto cadastrado.'}
           </div>
         ) : produtosFiltrados.map((p, i) => {
-          const margem = p.preco_custo > 0 ? ((p.preco_venda - p.preco_custo) / p.preco_custo * 100).toFixed(0) : null
+          const margem = !souAtendente && p.preco_custo > 0 ? ((p.preco_venda - p.preco_custo) / p.preco_custo * 100).toFixed(0) : null
           return (
             <motion.div
               key={p.id}
@@ -428,7 +441,7 @@ export default function Produtos() {
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '28px 1fr 120px 120px 90px 80px 76px',
+                gridTemplateColumns: souAtendente ? '28px 1fr 120px 90px 80px 76px' : '28px 1fr 120px 120px 90px 80px 76px',
                 padding: '14px 24px',
                 borderBottom: i < produtosFiltrados.length - 1 ? '1px solid #1F1F1F' : 'none',
                 alignItems: 'center',
@@ -473,7 +486,7 @@ export default function Produtos() {
                   )}
                 </div>
               </div>
-              <span style={{ fontSize: '13px', color: '#555' }}>{formatCurrency(p.preco_custo)}</span>
+              {!souAtendente && <span style={{ fontSize: '13px', color: '#555' }}>{formatCurrency(p.preco_custo)}</span>}
               <span style={{ fontSize: '13px', color: '#A3A3A3', fontWeight: 500 }}>{formatCurrency(p.preco_venda)}</span>
               <span style={{ fontSize: '14px', fontWeight: 700, color: '#A3A3A3' }}>
                 {p.estoque_atual} {p.unidade}
@@ -507,7 +520,7 @@ export default function Produtos() {
       {!loading && produtosFiltrados.length > 0 && (
         <div className="entity-grid mobile-only-grid" style={{ gap: '16px' }}>
           {produtosFiltrados.map((p, i) => {
-            const margem = p.preco_custo > 0 ? ((p.preco_venda - p.preco_custo) / p.preco_custo * 100).toFixed(0) : null
+            const margem = !souAtendente && p.preco_custo > 0 ? ((p.preco_venda - p.preco_custo) / p.preco_custo * 100).toFixed(0) : null
             const detalhes = [p.sku && `#${p.sku}`, margem && `+${margem}% margem`, p.comissao_percentual != null && `comissão ${p.comissao_percentual}%`].filter(Boolean).join(' · ')
             return (
               <motion.div
@@ -566,10 +579,12 @@ export default function Produtos() {
                       {p.estoque_atual} {p.unidade}
                     </p>
                   </div>
-                  <div>
-                    <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>Custo</p>
-                    <p style={{ fontSize: '13px', color: '#555' }}>{formatCurrency(p.preco_custo)}</p>
-                  </div>
+                  {!souAtendente && (
+                    <div>
+                      <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>Custo</p>
+                      <p style={{ fontSize: '13px', color: '#555' }}>{formatCurrency(p.preco_custo)}</p>
+                    </div>
+                  )}
                   <div>
                     <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>Venda</p>
                     <p style={{ fontSize: '13px', color: '#A3A3A3', fontWeight: 500 }}>{formatCurrency(p.preco_venda)}</p>
@@ -634,11 +649,13 @@ export default function Produtos() {
                   <label className="label">SKU / Código</label>
                   <input className="input" placeholder="opcional" value={prodForm.sku} onChange={e => setProdForm(f => ({ ...f, sku: e.target.value }))} />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                  <div className="field">
-                    <label className="label">Preço de Custo</label>
-                    <input className="input" type="number" min={0} step={0.01} placeholder="0,00" value={prodForm.preco_custo} onChange={e => setProdForm(f => ({ ...f, preco_custo: e.target.value }))} />
-                  </div>
+                <div style={{ display: 'grid', gridTemplateColumns: souAtendente ? '1fr 1fr' : '1fr 1fr 1fr', gap: '12px' }}>
+                  {!souAtendente && (
+                    <div className="field">
+                      <label className="label">Preço de Custo</label>
+                      <input className="input" type="number" min={0} step={0.01} placeholder="0,00" value={prodForm.preco_custo} onChange={e => setProdForm(f => ({ ...f, preco_custo: e.target.value }))} />
+                    </div>
+                  )}
                   <div className="field">
                     <label className="label">Venda à Vista *</label>
                     <input className="input" type="number" min={0} step={0.01} placeholder="0,00" value={prodForm.preco_venda} onChange={e => setProdForm(f => ({ ...f, preco_venda: e.target.value }))} />
@@ -807,16 +824,20 @@ export default function Produtos() {
                   <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>Estoque total</p>
                   <p style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>{produtoDetalhe.estoque_atual} {produtoDetalhe.unidade}</p>
                 </div>
-                <div>
-                  <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>Margem</p>
-                  <p style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>
-                    {produtoDetalhe.preco_custo > 0 ? `+${(((produtoDetalhe.preco_venda - produtoDetalhe.preco_custo) / produtoDetalhe.preco_custo) * 100).toFixed(0)}%` : '—'}
-                  </p>
-                </div>
-                <div>
-                  <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>Preço de custo</p>
-                  <p style={{ fontSize: '14px', color: '#A3A3A3' }}>{formatCurrency(produtoDetalhe.preco_custo)}</p>
-                </div>
+                {!souAtendente && (
+                  <div>
+                    <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>Margem</p>
+                    <p style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>
+                      {produtoDetalhe.preco_custo > 0 ? `+${(((produtoDetalhe.preco_venda - produtoDetalhe.preco_custo) / produtoDetalhe.preco_custo) * 100).toFixed(0)}%` : '—'}
+                    </p>
+                  </div>
+                )}
+                {!souAtendente && (
+                  <div>
+                    <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>Preço de custo</p>
+                    <p style={{ fontSize: '14px', color: '#A3A3A3' }}>{formatCurrency(produtoDetalhe.preco_custo)}</p>
+                  </div>
+                )}
                 <div>
                   <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>Venda à vista</p>
                   <p style={{ fontSize: '14px', color: '#A3A3A3' }}>{formatCurrency(produtoDetalhe.preco_venda)}</p>

@@ -4,6 +4,8 @@ import { Plus, X, Minus, Trash2, Search, Package, Check, RotateCcw, ScanLine, In
 import { supabase } from '../lib/supabase'
 import { formatCurrency, formatDate } from '../lib/utils'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
+import { useAuth } from '../hooks/useAuth'
+import { usePerfil } from '../hooks/usePerfil'
 import ScannerCamera from '../components/ScannerCamera'
 import type { Condicional, Cliente, Produto, PagamentoMetodo } from '../types'
 
@@ -21,6 +23,9 @@ type Decisao = 'vendido' | 'devolvido'
 const STATUS_LABEL: Record<string, string> = { aberto: 'Aberto', fechado: 'Fechado' }
 
 export default function Condicionais() {
+  const { user } = useAuth()
+  const { papel } = usePerfil()
+  const souAtendente = papel === 'atendente'
   const [condicionais, setCondicionais] = useState<Condicional[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [produtos, setProdutos] = useState<Produto[]>([])
@@ -58,22 +63,27 @@ export default function Condicionais() {
 
   const carregar = useCallback(() => {
     setLoading(true)
-    supabase.from('condicionais')
+    let query = supabase.from('condicionais')
       .select('*, cliente:clientes(nome, telefone), itens:itens_condicional(id, produto_id, nome, tamanho, quantidade, preco_unitario, status)')
       .order('criado_em', { ascending: false })
-      .then(({ data, error: err }) => {
-        if (err) { setError(err.message); setLoading(false); return }
-        setCondicionais((data ?? []) as Condicional[])
-        setLoading(false)
-      })
-  }, [])
+    if (souAtendente && user) query = query.eq('usuario_id', user.id)
+    query.then(({ data, error: err }) => {
+      if (err) { setError(err.message); setLoading(false); return }
+      setCondicionais((data ?? []) as Condicional[])
+      setLoading(false)
+    })
+  }, [souAtendente, user])
 
   useEffect(() => {
     carregar()
     supabase.from('clientes').select('*').eq('ativo', true).order('nome')
       .then(({ data }) => { if (data) setClientes(data as Cliente[]) })
-    supabase.from('produtos').select('*, tamanhos:produto_tamanhos(*)').eq('ativo', true).order('nome')
-      .then(({ data }) => { if (data) setProdutos(data as Produto[]) })
+    // Atendente não recebe preco_custo nem na resposta da API.
+    const colunasProduto: string = souAtendente
+      ? 'id, nome, categoria, sku, unidade, preco_venda, preco_venda_prazo, estoque_atual, estoque_minimo, estoque_maximo, comissao_percentual, ativo, foto_url, created_at, empresa_id, tamanhos:produto_tamanhos(*)'
+      : '*, tamanhos:produto_tamanhos(*)'
+    supabase.from('produtos').select(colunasProduto).eq('ativo', true).order('nome')
+      .then(({ data }) => { if (data) setProdutos(data as unknown as Produto[]) })
     supabase.from('taxas_cartao_parcelado').select('parcelas, taxa_percentual')
       .then(({ data }) => {
         if (!data) return
@@ -81,7 +91,7 @@ export default function Condicionais() {
         data.forEach(t => { next[t.parcelas] = Number(t.taxa_percentual) })
         setTaxasCartao(next)
       })
-  }, [carregar])
+  }, [carregar, souAtendente])
 
   const parcelasCartaoOrdenadas = Object.keys(taxasCartao).map(Number).sort((a, b) => a - b)
 

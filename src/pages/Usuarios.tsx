@@ -68,6 +68,19 @@ export default function Usuarios() {
     carregar()
   }
 
+  const [papelPendente, setPapelPendente] = useState<Record<string, PapelUsuario>>({})
+
+  async function vincularComPapel(u: UsuarioListado, empresaId: string) {
+    const papel = papelPendente[u.usuario_id] ?? 'atendente'
+    setSavingId(u.usuario_id); setError('')
+    const { error: err } = await supabase.rpc('atualizar_papel_usuario', {
+      p_usuario_id: u.usuario_id, p_papel: papel, p_profissional_id: null, p_ativo: true, p_empresa_id: empresaId,
+    })
+    setSavingId(null)
+    if (err) { setError(err.message); return }
+    carregar()
+  }
+
   const [permUser, setPermUser] = useState<UsuarioListado | null>(null)
   const [permSelecionadas, setPermSelecionadas] = useState<Set<string>>(new Set())
   const [permSaving, setPermSaving] = useState(false)
@@ -120,12 +133,12 @@ export default function Usuarios() {
 
         <div className="card desktop-row" style={{ padding: 0, overflow: 'hidden' }}>
           <div className="list-header" style={{
-            display: 'grid', gridTemplateColumns: '1fr 130px 200px 40px',
+            display: 'grid', gridTemplateColumns: '1fr 130px 140px 200px 40px',
             padding: '10px 24px', borderBottom: '1px solid #222',
             fontSize: '10px', fontWeight: 600, color: '#444', textTransform: 'uppercase', letterSpacing: '0.1em',
             background: 'rgba(0,0,0,0.2)',
           }}>
-            <span>E-mail</span><span>Desde</span><span>Vincular a</span><span></span>
+            <span>E-mail</span><span>Desde</span><span>Papel</span><span>Vincular a</span><span></span>
           </div>
 
           {loading ? (
@@ -140,7 +153,7 @@ export default function Usuarios() {
               className="list-row"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
               style={{
-                display: 'grid', gridTemplateColumns: '1fr 130px 200px 40px',
+                display: 'grid', gridTemplateColumns: '1fr 130px 140px 200px 40px',
                 padding: '12px 24px', alignItems: 'center',
                 borderBottom: i < pendentes.length - 1 ? '1px solid #1A1A1A' : 'none',
                 opacity: savingId === u.usuario_id ? 0.6 : 1,
@@ -151,8 +164,16 @@ export default function Usuarios() {
               <select
                 className="input"
                 style={{ fontSize: '12px', padding: '6px 8px' }}
+                value={papelPendente[u.usuario_id] ?? 'atendente'}
+                onChange={e => setPapelPendente(prev => ({ ...prev, [u.usuario_id]: e.target.value as PapelUsuario }))}
+              >
+                {Object.entries(PAPEL_LABEL).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+              </select>
+              <select
+                className="input"
+                style={{ fontSize: '12px', padding: '6px 8px' }}
                 value=""
-                onChange={e => e.target.value && salvar(u, 'empresa_id', e.target.value)}
+                onChange={e => e.target.value && vincularComPapel(u, e.target.value)}
               >
                 <option value="">Selecionar loja...</option>
                 {empresas.map(emp => <option key={emp.id} value={emp.id}>{emp.nome} ({emp.codigo})</option>)}
@@ -198,12 +219,23 @@ export default function Usuarios() {
                 <div className="entity-divider" style={{ height: '1px', background: '#222', margin: '16px 0' }} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div>
+                    <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Papel</p>
+                    <select
+                      className="input"
+                      style={{ fontSize: '13px' }}
+                      value={papelPendente[u.usuario_id] ?? 'atendente'}
+                      onChange={e => setPapelPendente(prev => ({ ...prev, [u.usuario_id]: e.target.value as PapelUsuario }))}
+                    >
+                      {Object.entries(PAPEL_LABEL).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+                    </select>
+                  </div>
+                  <div>
                     <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Vincular a</p>
                     <select
                       className="input"
                       style={{ fontSize: '13px' }}
                       value=""
-                      onChange={e => e.target.value && salvar(u, 'empresa_id', e.target.value)}
+                      onChange={e => e.target.value && vincularComPapel(u, e.target.value)}
                     >
                       <option value="">Selecionar loja...</option>
                       {empresas.map(emp => <option key={emp.id} value={emp.id}>{emp.nome} ({emp.codigo})</option>)}
