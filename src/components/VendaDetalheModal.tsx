@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { X, Package } from 'lucide-react'
+import { X, Package, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency, formatDate } from '../lib/utils'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
@@ -10,14 +10,17 @@ import type { Comanda, ItemComanda } from '../types'
 // gerou — usado ao clicar num lançamento de "venda" em Caixa/Financeiro.
 // Busca os itens da comanda e, pros itens tipo "produto", a foto
 // cadastrada (serviço não tem foto).
-export default function VendaDetalheModal({ comandaId, onClose }: {
+export default function VendaDetalheModal({ comandaId, onClose, onDelete }: {
   comandaId: string
   onClose: () => void
+  onDelete?: () => Promise<void> | void
 }) {
   const [comanda, setComanda] = useState<Comanda | null>(null)
   const [itens, setItens] = useState<ItemComanda[]>([])
   const [fotos, setFotos] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
+  const [excluindo, setExcluindo] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     let cancelado = false
@@ -49,6 +52,18 @@ export default function VendaDetalheModal({ comandaId, onClose }: {
 
   const modalRef = useModalKeyboard(true, onClose)
   const total = itens.reduce((s, i) => s + i.preco_unitario * i.quantidade, 0)
+
+  async function handleExcluir() {
+    if (!onDelete) return
+    if (!window.confirm('Excluir o lançamento financeiro dessa venda? Isso não desfaz a venda nem devolve o estoque, só remove o lançamento.')) return
+    setExcluindo(true); setError('')
+    try {
+      await onDelete()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível excluir.')
+      setExcluindo(false)
+    }
+  }
 
   return (
     <motion.div
@@ -108,10 +123,18 @@ export default function VendaDetalheModal({ comandaId, onClose }: {
                 )
               })}
             </div>
-            <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', marginBottom: onDelete ? '18px' : 0 }}>
               <span style={{ fontSize: '13px', color: '#A3A3A3' }}>Total</span>
               <span style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(comanda?.total ?? total)}</span>
             </div>
+
+            {error && <p style={{ fontSize: '12px', color: '#666', marginBottom: '12px' }}>{error}</p>}
+
+            {onDelete && (
+              <button className="btn btn-secondary" style={{ width: '100%', color: '#A3A3A3', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={handleExcluir} disabled={excluindo}>
+                <Trash2 size={13} /> {excluindo ? 'Excluindo...' : 'Excluir lançamento'}
+              </button>
+            )}
           </>
         )}
       </motion.div>
