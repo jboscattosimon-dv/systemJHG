@@ -10,6 +10,8 @@ const CAT_LABEL: Record<ProdutoCategoria, string> = {
   bebidas: 'Bebidas', pomadas: 'Pomadas', petiscos: 'Petiscos', outros: 'Outros',
 }
 
+interface TamanhoQtd { tamanho: string; quantidade: string }
+
 interface ItemEntrada {
   id: string
   produtoId: string | null
@@ -17,9 +19,11 @@ interface ItemEntrada {
   categoria: ProdutoCategoria
   quantidade: string
   valorPago: string
+  tamanhos: TamanhoQtd[]
 }
 
 interface ItemCalculado extends ItemEntrada {
+  qtdTotal: number
   custoUnitario: number
   precoVista: number
   precoPrazo: number | null
@@ -36,7 +40,14 @@ interface ItemResultado {
 }
 
 function uid() { return Math.random().toString(36).slice(2) }
-function novoItem(): ItemEntrada { return { id: uid(), produtoId: null, nome: '', categoria: 'outros', quantidade: '1', valorPago: '' } }
+function novoItem(): ItemEntrada {
+  return { id: uid(), produtoId: null, nome: '', categoria: 'outros', quantidade: '1', valorPago: '', tamanhos: [] }
+}
+function qtdItem(item: ItemEntrada): number {
+  return item.tamanhos.length > 0
+    ? item.tamanhos.reduce((s, t) => s + (Number(t.quantidade) || 0), 0)
+    : Number(item.quantidade) || 0
+}
 
 export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
   produtos: Produto[]
@@ -54,21 +65,22 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
   const [resultado, setResultado] = useState<ItemResultado[] | null>(null)
 
   const itensCalculados: ItemCalculado[] = useMemo(() => {
-    const totalPago = itens.reduce((s, i) => s + (Number(i.valorPago) || 0) * (Number(i.quantidade) || 0), 0)
+    const totalPago = itens.reduce((s, i) => s + (Number(i.valorPago) || 0) * qtdItem(i), 0)
     const freteNum = Number(frete) || 0
     const despesasNum = Number(despesas) || 0
     const mVista = Number(margemVista) || 0
     const mPrazo = margemPrazo.trim() ? Number(margemPrazo) : null
     return itens.map(item => {
-      const qtd = Number(item.quantidade) || 0
+      const qtd = qtdItem(item)
       const valorPago = Number(item.valorPago) || 0
       if (qtd <= 0 || totalPago <= 0) {
-        return { ...item, custoUnitario: valorPago, precoVista: 0, precoPrazo: null }
+        return { ...item, qtdTotal: qtd, custoUnitario: valorPago, precoVista: 0, precoPrazo: null }
       }
       const proporcao = (valorPago * qtd) / totalPago
       const custoUnitario = valorPago + (proporcao * (freteNum + despesasNum)) / qtd
       return {
         ...item,
+        qtdTotal: qtd,
         custoUnitario,
         precoVista: custoUnitario * (1 + mVista / 100),
         precoPrazo: mPrazo != null ? custoUnitario * (1 + mPrazo / 100) : null,
@@ -76,7 +88,7 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
     })
   }, [itens, frete, despesas, margemVista, margemPrazo])
 
-  const totalPago = itensCalculados.reduce((s, i) => s + (Number(i.valorPago) || 0) * (Number(i.quantidade) || 0), 0)
+  const totalPago = itensCalculados.reduce((s, i) => s + (Number(i.valorPago) || 0) * i.qtdTotal, 0)
   const totalExtra = (Number(frete) || 0) + (Number(despesas) || 0)
 
   function addItem() {
@@ -100,12 +112,27 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
     updateItem(id, { produtoId: null, nome: '' })
   }
 
+  function addTamanhoRow(itemId: string) {
+    setItens(prev => prev.map(i => i.id === itemId ? { ...i, tamanhos: [...i.tamanhos, { tamanho: '', quantidade: '' }] } : i))
+  }
+
+  function updateTamanhoRow(itemId: string, idx: number, campo: 'tamanho' | 'quantidade', valor: string) {
+    setItens(prev => prev.map(i => i.id === itemId
+      ? { ...i, tamanhos: i.tamanhos.map((t, ti) => ti === idx ? { ...t, [campo]: valor } : t) }
+      : i
+    ))
+  }
+
+  function removeTamanhoRow(itemId: string, idx: number) {
+    setItens(prev => prev.map(i => i.id === itemId ? { ...i, tamanhos: i.tamanhos.filter((_, ti) => ti !== idx) } : i))
+  }
+
   function sugestoes(nome: string): Produto[] {
     if (!nome.trim()) return []
     return produtos.filter(p => p.nome.toLowerCase().includes(nome.toLowerCase())).slice(0, 6)
   }
 
-  const itensValidos = itensCalculados.filter(i => i.nome.trim() && Number(i.quantidade) > 0 && Number(i.valorPago) >= 0)
+  const itensValidos = itensCalculados.filter(i => i.nome.trim() && i.qtdTotal > 0 && Number(i.valorPago) >= 0)
 
   async function handleSalvar() {
     if (itensValidos.length === 0) { setError('Adicione ao menos um item com nome, quantidade e valor pago.'); return }
@@ -116,8 +143,11 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
         produto_id: i.produtoId,
         nome: i.nome.trim(),
         categoria: i.categoria,
-        quantidade: Number(i.quantidade),
+        quantidade: i.qtdTotal,
         valor_pago_unitario: Number(i.valorPago),
+        tamanhos: i.tamanhos
+          .filter(t => t.tamanho.trim() && Number(t.quantidade) > 0)
+          .map(t => ({ tamanho: t.tamanho.trim(), quantidade: Number(t.quantidade) })),
       })),
       p_frete: Number(frete) || 0,
       p_despesas: Number(despesas) || 0,
@@ -175,7 +205,7 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
                     <p style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF' }}>{r.nome}</p>
                     <p style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>
                       +{r.quantidade} un · custo {formatCurrency(r.custo_unitario)}
-                      {r.tem_tamanhos && <span style={{ color: '#777' }}> · tem tamanhos, ajuste o estoque em Produtos</span>}
+                      {r.tem_tamanhos && <span style={{ color: '#777' }}> · estoque somado por tamanho</span>}
                     </p>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -194,6 +224,7 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', margin: '18px 0' }}>
               {itensCalculados.map(item => {
                 const lista = buscaAberta === item.id ? sugestoes(item.nome) : []
+                const usaTamanhos = item.tamanhos.length > 0
                 return (
                   <div key={item.id} style={{ padding: '12px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid #252525' }}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
@@ -253,18 +284,45 @@ export default function EntradaProdutosModal({ produtos, onClose, onSuccess }: {
                           {Object.entries(CAT_LABEL).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
                         </select>
                       )}
-                      <input
-                        className="input" style={{ width: '64px', flexShrink: 0 }} type="number" min={1} placeholder="Qtd"
-                        value={item.quantidade} onChange={e => updateItem(item.id, { quantidade: e.target.value })}
-                      />
+                      {!usaTamanhos && (
+                        <input
+                          className="input" style={{ width: '64px', flexShrink: 0 }} type="number" min={1} placeholder="Qtd"
+                          value={item.quantidade} onChange={e => updateItem(item.id, { quantidade: e.target.value })}
+                        />
+                      )}
                       <input
                         className="input" style={{ width: '100px', flexShrink: 0 }} type="number" min={0} step={0.01} placeholder="Vlr pago"
                         value={item.valorPago} onChange={e => updateItem(item.id, { valorPago: e.target.value })}
                       />
                       <button className="btn btn-icon" onClick={() => removeItem(item.id)} style={{ flexShrink: 0 }}><Trash2 size={12} /></button>
                     </div>
-                    {Number(item.quantidade) > 0 && Number(item.valorPago) >= 0 && (
+
+                    <div style={{ marginTop: '10px' }}>
+                      {usaTamanhos && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '6px' }}>
+                          {item.tamanhos.map((t, idx) => (
+                            <div key={idx} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              <input
+                                className="input" style={{ flex: 1 }} placeholder="Tamanho (P, M, 38...)"
+                                value={t.tamanho} onChange={e => updateTamanhoRow(item.id, idx, 'tamanho', e.target.value)}
+                              />
+                              <input
+                                className="input" style={{ width: '80px' }} type="number" min={0} placeholder="Qtd"
+                                value={t.quantidade} onChange={e => updateTamanhoRow(item.id, idx, 'quantidade', e.target.value)}
+                              />
+                              <button className="btn btn-icon" onClick={() => removeTamanhoRow(item.id, idx)}><Trash2 size={12} /></button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => addTamanhoRow(item.id)} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Plus size={11} /> {usaTamanhos ? 'Tamanho' : 'Definir por tamanho'}
+                      </button>
+                    </div>
+
+                    {item.qtdTotal > 0 && Number(item.valorPago) >= 0 && (
                       <p style={{ fontSize: '11px', color: '#555', marginTop: '8px' }}>
+                        {usaTamanhos && <>{item.qtdTotal} un total · </>}
                         Custo rateado <strong style={{ color: '#A3A3A3' }}>{formatCurrency(item.custoUnitario)}</strong>
                         {' · '}à vista <strong style={{ color: '#FFFFFF' }}>{formatCurrency(item.precoVista)}</strong>
                         {item.precoPrazo != null && <> · a prazo <strong style={{ color: '#FFFFFF' }}>{formatCurrency(item.precoPrazo)}</strong></>}
