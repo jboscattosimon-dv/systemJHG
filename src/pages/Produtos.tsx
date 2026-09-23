@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type ChangeEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, X, Package, Check, Tag, Pencil, Download, Upload, Trash2, FileSpreadsheet, ClipboardList } from 'lucide-react'
+import { Plus, X, Package, Check, Tag, Pencil, Download, Upload, Trash2, FileSpreadsheet, ClipboardList, Calendar } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { formatCurrency } from '../lib/utils'
@@ -195,6 +195,7 @@ export default function Produtos() {
 
   const [filtroDataInicio, setFiltroDataInicio] = useState('')
   const [filtroDataFim, setFiltroDataFim] = useState('')
+  const [mostrarFiltroData, setMostrarFiltroData] = useState(false)
 
   const produtosFiltrados = produtos.filter(p => {
     if (!p.nome.toLowerCase().includes(busca.toLowerCase()) && !(p.sku ?? '').toLowerCase().includes(busca.toLowerCase())) return false
@@ -371,6 +372,17 @@ export default function Produtos() {
           <p style={{ fontSize: '13px', color: '#555', marginTop: '3px' }}>Estoque e catálogo da loja</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button
+            className="btn btn-icon"
+            title="Filtrar por data de cadastro"
+            onClick={() => setMostrarFiltroData(v => !v)}
+            style={{ position: 'relative' }}
+          >
+            <Calendar size={13} />
+            {(filtroDataInicio || filtroDataFim) && (
+              <span style={{ position: 'absolute', top: '4px', right: '4px', width: '6px', height: '6px', borderRadius: '50%', background: '#FFFFFF' }} />
+            )}
+          </button>
           {produtosFiltrados.length > 0 && (
             <button className="btn btn-secondary btn-sm" onClick={toggleSelecionarTodos} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Check size={12} /> {selecionados.size === produtosFiltrados.length ? 'Desmarcar todos' : 'Selecionar todos'}
@@ -411,17 +423,19 @@ export default function Produtos() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
-        <span style={{ fontSize: '11px', color: '#555' }}>Cadastrado entre</span>
-        <input className="input" type="date" style={{ padding: '6px 10px', fontSize: '12px' }} value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} />
-        <span style={{ fontSize: '11px', color: '#555' }}>e</span>
-        <input className="input" type="date" style={{ padding: '6px 10px', fontSize: '12px' }} value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} />
-        <button className="btn btn-secondary btn-sm" onClick={() => { setFiltroDataInicio(hojeLocal()); setFiltroDataFim(hojeLocal()) }}>Hoje</button>
-        <button className="btn btn-secondary btn-sm" onClick={() => { setFiltroDataInicio(hojeLocal(-1)); setFiltroDataFim(hojeLocal(-1)) }}>Ontem</button>
-        {(filtroDataInicio || filtroDataFim) && (
-          <button className="btn btn-ghost btn-sm" onClick={() => { setFiltroDataInicio(''); setFiltroDataFim('') }}>Limpar</button>
-        )}
-      </div>
+      {mostrarFiltroData && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+          <span style={{ fontSize: '11px', color: '#555' }}>Cadastrado entre</span>
+          <input className="input" type="date" style={{ padding: '6px 10px', fontSize: '12px' }} value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} />
+          <span style={{ fontSize: '11px', color: '#555' }}>e</span>
+          <input className="input" type="date" style={{ padding: '6px 10px', fontSize: '12px' }} value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} />
+          <button className="btn btn-secondary btn-sm" onClick={() => { setFiltroDataInicio(hojeLocal()); setFiltroDataFim(hojeLocal()) }}>Hoje</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => { setFiltroDataInicio(hojeLocal(-1)); setFiltroDataFim(hojeLocal(-1)) }}>Ontem</button>
+          {(filtroDataInicio || filtroDataFim) && (
+            <button className="btn btn-ghost btn-sm" onClick={() => { setFiltroDataInicio(''); setFiltroDataFim('') }}>Limpar</button>
+          )}
+        </div>
+      )}
 
       {error && <p style={{ fontSize: '12px', color: '#666', marginBottom: '16px' }}>{error}</p>}
       {resultadoImportacao && (
