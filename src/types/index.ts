@@ -212,7 +212,8 @@ export type MovimentoEstoqueTipo = 'entrada' | 'saida' | 'ajuste' | 'perda' | 'd
 
 export interface Comissao {
   id: string
-  profissional_id: string
+  profissional_id?: string
+  usuario_id?: string
   comanda_id?: string
   item_comanda_id?: string
   valor_base: number
@@ -317,6 +318,7 @@ export interface UsuarioListado {
   empresa_id?: string
   empresa_nome?: string
   telas_permitidas?: string[] | null
+  comissao_percentual?: number | null
 }
 
 export interface UsuarioPerfil {

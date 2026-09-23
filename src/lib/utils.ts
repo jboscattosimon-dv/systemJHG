@@ -12,8 +12,21 @@ export function formatCurrency(value: number): string {
   }).format(value)
 }
 
+// Datas "YYYY-MM-DD" puras (coluna DATE do Postgres, sem hora/fuso)
+// são interpretadas pelo JS como meia-noite UTC. Formatadas depois no
+// fuso local (Brasil, UTC-3), isso "volta" um dia inteiro na tela —
+// uma data de amanhã já parece ter voltado ao dia anterior. Aqui a
+// gente monta a partir dos componentes ano/mês/dia direto, sem passar
+// por UTC, pra mostrar exatamente o dia que está gravado no banco.
+function parseDataSemFuso(date: string): Date {
+  const soData = /^\d{4}-\d{2}-\d{2}$/.test(date)
+  if (!soData) return new Date(date)
+  const [y, m, d] = date.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
 export function formatDate(date: string | Date): string {
-  const d = typeof date === 'string' ? new Date(date) : date
+  const d = typeof date === 'string' ? parseDataSemFuso(date) : date
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: '2-digit',
