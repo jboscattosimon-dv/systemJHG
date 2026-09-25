@@ -52,6 +52,7 @@ export default function EmpresaDetalhe() {
     setBusyId(usuarioId); setError('')
     const { error: err } = await supabase.rpc('atualizar_papel_usuario', {
       p_usuario_id: usuarioId, p_papel: papel, p_profissional_id: null, p_ativo: true, p_empresa_id: id,
+      p_comissao_percentual: null,
     })
     setBusyId(null)
     if (err) { setError(err.message); return }

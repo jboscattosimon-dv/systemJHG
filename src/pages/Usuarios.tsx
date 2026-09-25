@@ -76,6 +76,7 @@ export default function Usuarios() {
     setSavingId(u.usuario_id); setError('')
     const { error: err } = await supabase.rpc('atualizar_papel_usuario', {
       p_usuario_id: u.usuario_id, p_papel: papel, p_profissional_id: null, p_ativo: true, p_empresa_id: empresaId,
+      p_comissao_percentual: null,
     })
     setSavingId(null)
     if (err) { setError(err.message); return }
