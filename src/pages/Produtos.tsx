@@ -13,7 +13,7 @@ import { usePerfil } from '../hooks/usePerfil'
 import type { Produto } from '../types'
 
 const COLUNAS_IMPORTACAO = [
-  'Nome', 'Tamanho', 'Estoque', 'Preço de Custo', 'Preço de Venda à Vista', 'Preço de Venda a Prazo',
+  'SKU', 'Nome', 'Tamanho', 'Estoque', 'Preço de Custo', 'Preço de Venda à Vista', 'Preço de Venda a Prazo',
 ] as const
 
 interface TamanhoQtd { tamanho: string; quantidade: number }
@@ -44,7 +44,7 @@ function formatarTamanhos(tamanhos: TamanhoQtd[]): string {
 }
 
 function baixarModeloProdutos() {
-  const exemplo = ['Conjunto Eva', 'P:2, M:3', '', 80, 200, 220]
+  const exemplo = ['', 'Conjunto Eva', 'P:2, M:3', '', 80, 200, 220]
   const ws = XLSX.utils.aoa_to_sheet([COLUNAS_IMPORTACAO as unknown as string[], exemplo])
   ws['!cols'] = COLUNAS_IMPORTACAO.map(() => ({ wch: 24 }))
   const wb = XLSX.utils.book_new()
@@ -54,6 +54,7 @@ function baixarModeloProdutos() {
 
 function exportarProdutos(produtos: Produto[]) {
   const linhas = produtos.map(p => [
+    p.sku ?? '',
     p.nome,
     formatarTamanhos((p.tamanhos ?? []).map(t => ({ tamanho: t.tamanho, quantidade: t.quantidade }))),
     p.estoque_atual,
@@ -70,12 +71,18 @@ function exportarProdutos(produtos: Produto[]) {
 
 interface LinhaImportada {
   nome: string
+  sku: string | null
   tamanhos: TamanhoQtd[]
   estoque_total: number
   preco_custo: number
   preco_venda: number
   preco_venda_prazo: number | null
 }
+
+// Planilha de nota fiscal costuma vir com o código do fornecedor
+// grudado no nome, tipo "0322935 - Calça N460". Se não tiver uma
+// coluna de SKU separada, extrai o código de lá e limpa o nome.
+const NOME_COM_CODIGO = /^(\d+)\s*[-–]\s*(.+)$/
 
 function numero(valor: unknown, padrao = 0): number {
   const n = Number(String(valor ?? '').replace(',', '.'))
@@ -110,8 +117,9 @@ function normalizarCabecalho(s: string): string {
 
 // Cada coluna aceita alguns apelidos, pra planilhas antigas ou digitadas de
 // cabeça (sem seguir o modelo à risca) continuarem funcionando.
-const ALIASES_COLUNA: Record<'nome' | 'tamanho' | 'estoque' | 'custo' | 'vendaVista' | 'vendaPrazo', string[]> = {
+const ALIASES_COLUNA: Record<'nome' | 'sku' | 'tamanho' | 'estoque' | 'custo' | 'vendaVista' | 'vendaPrazo', string[]> = {
   nome:       ['nome', 'nome do produto', 'produto'],
+  sku:        ['sku', 'codigo', 'código', 'codigo sku', 'código sku', 'cod sku'],
   tamanho:    ['tamanho', 'tamanhos'],
   estoque:    ['estoque', 'estoque total', 'estoque atual', 'quantidade'],
   custo:      ['preco de custo', 'custo'],
@@ -139,7 +147,12 @@ async function lerPlanilhaProdutos(arquivo: File): Promise<{ validas: LinhaImpor
     const linha: Record<string, unknown> = {}
     Object.entries(linhaBruta).forEach(([chave, valor]) => { linha[normalizarCabecalho(chave)] = valor })
 
-    const nome = String(valorDaColuna(linha, 'nome') ?? '').trim()
+    let nome = String(valorDaColuna(linha, 'nome') ?? '').trim()
+    let sku = String(valorDaColuna(linha, 'sku') ?? '').trim() || null
+    if (!sku) {
+      const match = nome.match(NOME_COM_CODIGO)
+      if (match) { sku = match[1]; nome = match[2].trim() }
+    }
     const precoVenda = numero(valorDaColuna(linha, 'vendaVista'), NaN)
     if (!nome) { erros.push(`Linha ${i + 2}: sem nome do produto, ignorada.`); return }
     if (!Number.isFinite(precoVenda) || precoVenda <= 0) { erros.push(`Linha ${i + 2} (${nome}): preço de venda à vista inválido, ignorada.`); return }
@@ -153,6 +166,7 @@ async function lerPlanilhaProdutos(arquivo: File): Promise<{ validas: LinhaImpor
 
     validas.push({
       nome,
+      sku,
       tamanhos,
       estoque_total: estoqueTotal,
       preco_custo: numero(valorDaColuna(linha, 'custo'), 0),
@@ -218,6 +232,7 @@ export default function Produtos() {
         const { error: err } = await supabase.rpc('importar_produtos', {
           p_produtos: validas.map(v => ({
             nome: v.nome,
+            sku: v.sku,
             tamanhos: v.tamanhos,
             estoque_total: v.estoque_total,
             preco_custo: v.preco_custo,
