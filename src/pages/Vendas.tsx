@@ -26,7 +26,8 @@ export default function Vendas() {
   const { user } = useAuth()
   const { papel } = usePerfil()
   const souAtendente = papel === 'atendente'
-  const [modo, setModo] = useState<'lista' | 'nova'>('lista')
+  const [modo, setModo] = useState<'lista' | 'nova' | 'editar'>('lista')
+  const [edicaoId, setEdicaoId] = useState<string | null>(null)
   const [vendas, setVendas] = useState<Comanda[]>([])
   const [loadingVendas, setLoadingVendas] = useState(true)
   const [vendaSelecionadaId, setVendaSelecionadaId] = useState<string | null>(null)
@@ -233,33 +234,45 @@ export default function Vendas() {
   }
 
   async function finalizarVenda() {
-    if (pagamento === 'parcelado' && !clienteId) {
+    const editando = modo === 'editar'
+    if (!editando && pagamento === 'parcelado' && !clienteId) {
       setError('Selecione um cliente cadastrado pra vender parcelado.')
       return
     }
-    if (pagamento === 'parcelado' && parceladoTipo === 'cartao' && !taxasCartao[numeroParcelas]) {
+    if (!editando && pagamento === 'parcelado' && parceladoTipo === 'cartao' && !taxasCartao[numeroParcelas]) {
       setError('Selecione uma quantidade de parcelas com taxa configurada.')
       return
     }
     setSaving(true); setError('')
     const clienteSelecionado = clientes.find(c => c.id === clienteId)
-    const { error: err } = await supabase.rpc('finalizar_venda', {
-      p_cliente_nome: clienteSelecionado?.nome ?? (clienteBusca || null),
-      p_cliente_id: clienteId || null,
-      p_forma_pagamento: pagamento,
-      p_itens: cart.map(i => ({
-        tipo: i.tipo,
-        referencia_id: i.referencia_id,
-        nome: i.nome,
-        tamanho: i.tamanho ?? null,
-        quantidade: i.quantidade,
-        preco_unitario: precoEfetivo(i),
-        profissional_id: i.profissional_id ?? null,
-      })),
-      p_total_parcelas: pagamento === 'parcelado' ? numeroParcelas : 1,
-      p_taxa_cartao_percentual: taxaCartaoSelecionada,
-      p_desconto: valorDesconto,
-    })
+    const itensPayload = cart.map(i => ({
+      tipo: i.tipo,
+      referencia_id: i.referencia_id,
+      nome: i.nome,
+      tamanho: i.tamanho ?? null,
+      quantidade: i.quantidade,
+      preco_unitario: precoEfetivo(i),
+      profissional_id: i.profissional_id ?? null,
+    }))
+
+    const { error: err } = editando
+      ? await supabase.rpc('editar_venda', {
+          p_comanda_id: edicaoId,
+          p_cliente_nome: clienteSelecionado?.nome ?? (clienteBusca || null),
+          p_cliente_id: clienteId || null,
+          p_forma_pagamento: pagamento,
+          p_itens: itensPayload,
+          p_desconto: valorDesconto,
+        })
+      : await supabase.rpc('finalizar_venda', {
+          p_cliente_nome: clienteSelecionado?.nome ?? (clienteBusca || null),
+          p_cliente_id: clienteId || null,
+          p_forma_pagamento: pagamento,
+          p_itens: itensPayload,
+          p_total_parcelas: pagamento === 'parcelado' ? numeroParcelas : 1,
+          p_taxa_cartao_percentual: taxaCartaoSelecionada,
+          p_desconto: valorDesconto,
+        })
 
     setSaving(false)
     if (err) { setError(err.message); return }
@@ -271,9 +284,33 @@ export default function Vendas() {
     setParceladoTipo('dinheiro')
     setNumeroParcelas(2)
     setDescontoValorInput('')
+    setEdicaoId(null)
     setTimeout(() => setDone(false), 2500)
     carregarProdutos()
     carregarVendas()
+    setModo('lista')
+  }
+
+  function iniciarEdicao(comanda: Comanda, itens: ItemComanda[]) {
+    setEdicaoId(comanda.id)
+    setCart(itens.map(i => ({
+      id: uid(),
+      tipo: i.tipo,
+      referencia_id: i.referencia_id,
+      nome: i.nome,
+      tamanho: i.tamanho,
+      quantidade: i.quantidade,
+      preco_unitario: i.preco_unitario,
+      profissional_id: i.profissional_id,
+    })))
+    setClienteId(comanda.cliente_id ?? '')
+    setClienteBusca('')
+    setPagamento((comanda.forma_pagamento ?? 'pix') as PagamentoMetodo)
+    setDescontoValorInput('')
+    setDescontoTipo('valor')
+    setError('')
+    setVendaSelecionadaId(null)
+    setModo('editar')
   }
 
   const modalRef = useModalKeyboard(showPayModal, () => setShowPayModal(false), finalizarVenda)
@@ -367,7 +404,7 @@ export default function Vendas() {
 
         <AnimatePresence>
           {vendaSelecionadaId && (
-            <VendaDetalheModal comandaId={vendaSelecionadaId} onClose={() => setVendaSelecionadaId(null)} />
+            <VendaDetalheModal comandaId={vendaSelecionadaId} onClose={() => setVendaSelecionadaId(null)} onEdit={iniciarEdicao} />
           )}
         </AnimatePresence>
       </div>
@@ -381,10 +418,13 @@ export default function Vendas() {
       <div className="pdv-catalog" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         <button
-          onClick={() => setModo('lista')}
+          onClick={() => {
+            if (modo === 'editar') { setCart([]); limparCliente(); setEdicaoId(null) }
+            setModo('lista')
+          }}
           style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#666', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: '14px', flexShrink: 0 }}
         >
-          <ArrowLeft size={13} /> Vendas
+          <ArrowLeft size={13} /> {modo === 'editar' ? 'Cancelar edição' : 'Vendas'}
         </button>
 
         {/* Search */}
@@ -644,7 +684,7 @@ export default function Vendas() {
             </span>
           </div>
           <button className="btn btn-primary btn-full" onClick={() => setShowPayModal(true)} disabled={cart.length === 0}>
-            Finalizar Venda
+            {modo === 'editar' ? 'Salvar Edição' : 'Finalizar Venda'}
           </button>
         </div>
       </div>
@@ -750,7 +790,7 @@ export default function Vendas() {
                 <button className="btn btn-icon" onClick={() => setShowPayModal(false)}><X size={14} /></button>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
-                {PAGAMENTOS.map(p => (
+                {PAGAMENTOS.filter(p => modo !== 'editar' || p.id !== 'parcelado').map(p => (
                   <button
                     key={p.id}
                     onClick={() => setPagamento(p.id)}

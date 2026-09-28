@@ -1,20 +1,24 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { X, Package, Trash2 } from 'lucide-react'
+import { X, Package, Trash2, Pencil } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency, formatDate } from '../lib/utils'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
+import { usePerfil } from '../hooks/usePerfil'
 import type { Comanda, ItemComanda } from '../types'
 
 // Detalhe de uma venda (comanda) a partir do movimento de caixa que ela
-// gerou — usado ao clicar num lançamento de "venda" em Caixa/Financeiro.
+// gerou — usado ao clicar num lançamento de "venda" em Vendas/Financeiro.
 // Busca os itens da comanda e, pros itens tipo "produto", a foto
 // cadastrada (serviço não tem foto).
-export default function VendaDetalheModal({ comandaId, onClose, onDelete }: {
+export default function VendaDetalheModal({ comandaId, onClose, onDelete, onEdit }: {
   comandaId: string
   onClose: () => void
   onDelete?: () => Promise<void> | void
+  onEdit?: (comanda: Comanda, itens: ItemComanda[]) => void
 }) {
+  const { papel } = usePerfil()
+  const podeEditar = papel === 'administrador' || papel === 'gerente'
   const [comanda, setComanda] = useState<Comanda | null>(null)
   const [itens, setItens] = useState<ItemComanda[]>([])
   const [fotos, setFotos] = useState<Record<string, string>>({})
@@ -123,18 +127,25 @@ export default function VendaDetalheModal({ comandaId, onClose, onDelete }: {
                 )
               })}
             </div>
-            <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', marginBottom: onDelete ? '18px' : 0 }}>
+            <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', marginBottom: (onDelete || onEdit) ? '18px' : 0 }}>
               <span style={{ fontSize: '13px', color: '#A3A3A3' }}>Total</span>
               <span style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(comanda?.total ?? total)}</span>
             </div>
 
             {error && <p style={{ fontSize: '12px', color: '#666', marginBottom: '12px' }}>{error}</p>}
 
-            {onDelete && (
-              <button className="btn btn-secondary" style={{ width: '100%', color: '#A3A3A3', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={handleExcluir} disabled={excluindo}>
-                <Trash2 size={13} /> {excluindo ? 'Excluindo...' : 'Excluir lançamento'}
-              </button>
-            )}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              {onEdit && podeEditar && comanda && comanda.status === 'fechada' && comanda.forma_pagamento !== 'parcelado' && (
+                <button className="btn btn-secondary" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={() => onEdit(comanda, itens)}>
+                  <Pencil size={13} /> Editar
+                </button>
+              )}
+              {onDelete && (
+                <button className="btn btn-secondary" style={{ flex: 1, color: '#A3A3A3', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={handleExcluir} disabled={excluindo}>
+                  <Trash2 size={13} /> {excluindo ? 'Excluindo...' : 'Excluir lançamento'}
+                </button>
+              )}
+            </div>
           </>
         )}
       </motion.div>
