@@ -240,6 +240,10 @@ export default function Condicionais() {
   }
 
   function abrirEditar(c: Condicional) {
+    if (c.status === 'fechado' && c.venda_id) {
+      window.alert('Esse condicional já gerou uma venda — para corrigir, edite a venda diretamente em Vendas.')
+      return
+    }
     setCondEditar(c)
     setItensEditar((c.itens ?? []).map(i => ({
       produto_id: i.produto_id, nome: i.nome, tamanho: i.tamanho,
@@ -526,14 +530,14 @@ export default function Condicionais() {
             <span className={c.status === 'fechado' ? 'badge badge-done' : 'badge badge-pending'}>
               {STATUS_LABEL[c.status]}
             </span>
-            {c.status === 'aberto' ? (
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <button className="btn btn-secondary btn-sm" onClick={e => { e.stopPropagation(); abrirEditar(c) }} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <Pencil size={11} /> Editar
-                </button>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button className="btn btn-secondary btn-sm" onClick={e => { e.stopPropagation(); abrirEditar(c) }} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <Pencil size={11} /> Editar
+              </button>
+              {c.status === 'aberto' && (
                 <button className="btn btn-secondary btn-sm" onClick={e => { e.stopPropagation(); abrirFechar(c) }}>Fechar</button>
-              </div>
-            ) : <span />}
+              )}
+            </div>
           </motion.div>
         ))}
       </div>
@@ -563,14 +567,14 @@ export default function Condicionais() {
               <div className="entity-divider" style={{ height: '1px', background: '#222', margin: '14px 0' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '16px', fontWeight: 700, color: '#FFFFFF' }}>{formatCurrency(totalCondicional(c))}</span>
-                {c.status === 'aberto' && (
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button className="btn btn-secondary btn-sm" onClick={e => { e.stopPropagation(); abrirEditar(c) }} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <Pencil size={11} /> Editar
-                    </button>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button className="btn btn-secondary btn-sm" onClick={e => { e.stopPropagation(); abrirEditar(c) }} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Pencil size={11} /> Editar
+                  </button>
+                  {c.status === 'aberto' && (
                     <button className="btn btn-secondary btn-sm" onClick={e => { e.stopPropagation(); abrirFechar(c) }}>Fechar</button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </motion.div>
           ))}
@@ -697,15 +701,13 @@ export default function Condicionais() {
                 <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setCondDetalhe(null)}>
                   Voltar <span className="shortcut-hint">(Esc)</span>
                 </button>
+                <button className="btn btn-secondary" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={() => abrirEditarDoDetalhe(condDetalhe)}>
+                  <Pencil size={13} /> Editar
+                </button>
                 {condDetalhe.status === 'aberto' && (
-                  <>
-                    <button className="btn btn-secondary" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={() => abrirEditarDoDetalhe(condDetalhe)}>
-                      <Pencil size={13} /> Editar
-                    </button>
-                    <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => abrirFecharDoDetalhe(condDetalhe)}>
-                      Fechar Condicional
-                    </button>
-                  </>
+                  <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => abrirFecharDoDetalhe(condDetalhe)}>
+                    Fechar Condicional
+                  </button>
                 )}
               </div>
             </motion.div>
