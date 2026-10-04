@@ -120,11 +120,39 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
   color: #000000;
   font-weight: 600;
 }
-.btn-primary:hover {
-  background: #E5E5E5;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(255,255,255,0.14);
+/* Efeitos de hover só em quem tem mouse: no iPhone o primeiro toque
+   num botão com hover animado (translateY + transition) só "ativa o
+   hover" e o clique precisa de um segundo toque. */
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover {
+    background: #E5E5E5;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(255,255,255,0.14);
+  }
+  .btn-secondary:hover {
+    border-color: var(--border-strong);
+    background: var(--surface);
+    transform: translateY(-1px);
+  }
+  .btn-ghost:hover { background: var(--surface); color: var(--text); }
+  .btn-icon:hover { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
+  .card:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-sm);
+  }
+  .glow-card:hover {
+    border-color: rgba(255,255,255,0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 28px rgba(0,0,0,0.35);
+  }
+  .glow-card:hover::before {
+    opacity: 1;
+  }
 }
+
+/* Sem atraso/zoom de duplo toque nos elementos clicáveis */
+button, a, select, label, [role="button"] { touch-action: manipulation; }
+
 .btn-primary:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(255,255,255,0.1); }
 
 /* Secondary: transparente, borda fina branca */
@@ -136,12 +164,6 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
   color: #FFFFFF;
   border: 1px solid var(--border);
 }
-.btn-secondary:hover {
-  border-color: var(--border-strong);
-  background: var(--surface);
-  transform: translateY(-1px);
-}
-
 /* Ghost: sem borda, texto muted */
 .btn-ghost {
   composes: btn;
@@ -150,7 +172,6 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
   background: transparent;
   color: var(--text-muted);
 }
-.btn-ghost:hover { background: var(--surface); color: var(--text); }
 
 /* Icon button */
 .btn-icon {
@@ -163,7 +184,6 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
-.btn-icon:hover { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
 
 .btn-sm { padding: 8px 16px !important; min-height: 34px !important; font-size: 13px !important; }
 .btn-full { width: 100%; }
@@ -178,11 +198,6 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
   border-radius: var(--radius-lg);
   padding: 24px;
   transition: border-color 0.3s var(--ease-premium), box-shadow 0.3s var(--ease-premium);
-}
-
-.card:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-sm);
 }
 
 .glow-card {
@@ -202,16 +217,6 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
   opacity: 0;
   transition: opacity 0.35s ease;
   pointer-events: none;
-}
-
-.glow-card:hover {
-  border-color: rgba(255,255,255,0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 10px 28px rgba(0,0,0,0.35);
-}
-
-.glow-card:hover::before {
-  opacity: 1;
 }
 
 .card-sm {
