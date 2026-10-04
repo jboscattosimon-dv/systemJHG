@@ -1,16 +1,18 @@
 import { useState, useEffect, useRef, type ChangeEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, X, Package, Check, Tag, Pencil, Download, Upload, Trash2, FileSpreadsheet, ClipboardList, Calendar } from 'lucide-react'
+import { Plus, X, Package, Check, Tag, Pencil, Download, Upload, Trash2, FileSpreadsheet, ClipboardList, Calendar, Percent } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { formatCurrency } from '../lib/utils'
+import { aplicarPromocoes, carregarPromocoesVigentes } from '../lib/promocoes'
 import EtiquetaModal from '../components/EtiquetaModal'
 import EntradaProdutosModal from '../components/EntradaProdutosModal'
 import ProdutoFotosModal from '../components/ProdutoFotosModal'
+import PromocoesTab from '../components/PromocoesTab'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
 import { useHeaderBusca } from '../hooks/useHeaderBusca'
 import { usePerfil } from '../hooks/usePerfil'
-import type { Produto } from '../types'
+import type { Produto, RegraPromocao } from '../types'
 
 const COLUNAS_IMPORTACAO = [
   'SKU', 'Nome', 'Tamanho', 'Estoque', 'Preço de Custo', 'Preço de Venda à Vista', 'Preço de Venda a Prazo',
@@ -202,6 +204,12 @@ export default function Produtos() {
   const [produtoDetalhe, setProdutoDetalhe] = useState<Produto | null>(null)
   const [produtoFotosAlvo, setProdutoFotosAlvo] = useState<Produto | null>(null)
   const [showEntrada, setShowEntrada] = useState(false)
+  const [aba, setAba] = useState<'catalogo' | 'promocoes'>('catalogo')
+  const [promocaoComProdutos, setPromocaoComProdutos] = useState<string[] | null>(null)
+  const [regrasPromocao, setRegrasPromocao] = useState<RegraPromocao[]>([])
+  // Só pra mostrar o preço promocional vigente na listagem — o cadastro
+  // continua editando o preço normal.
+  const promoPorProduto = new Map(aplicarPromocoes(produtos, regrasPromocao).filter(p => p.preco_original != null).map(p => [p.id, p]))
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const temTamanhosForm = prodTamanhos.some(t => t.tamanho.trim())
@@ -266,6 +274,12 @@ export default function Produtos() {
     setProdutosEtiqueta(produtos.filter(p => selecionados.has(p.id)))
   }
 
+  function criarPromocaoComSelecionados() {
+    setPromocaoComProdutos(Array.from(selecionados))
+    setSelecionados(new Set())
+    setAba('promocoes')
+  }
+
   function carregarProdutos() {
     // Atendente não recebe preco_custo nem na resposta da API — não é só
     // esconder na tela, o dado nem sai do banco pra essa conta.
@@ -275,6 +289,10 @@ export default function Produtos() {
     return supabase.from('produtos').select(colunas).order('nome')
       .then(({ data }) => { setProdutos((data ?? []) as unknown as Produto[]); setLoading(false) })
   }
+
+  useEffect(() => {
+    if (aba === 'catalogo') carregarPromocoesVigentes().then(setRegrasPromocao)
+  }, [aba])
 
   useEffect(() => {
     carregarProdutos()
@@ -386,7 +404,7 @@ export default function Produtos() {
           <h1 style={{ fontSize: '24px', color: '#FFFFFF' }}>Produtos</h1>
           <p style={{ fontSize: '13px', color: '#555', marginTop: '3px' }}>Estoque e catálogo da loja</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        {aba === 'catalogo' && <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button
             className="btn btn-icon"
             title="Filtrar por data de cadastro"
@@ -406,6 +424,11 @@ export default function Produtos() {
           {selecionados.size > 0 && (
             <button className="btn btn-secondary btn-sm" onClick={imprimirSelecionados} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Tag size={12} /> Imprimir etiquetas ({selecionados.size})
+            </button>
+          )}
+          {selecionados.size > 0 && !souAtendente && (
+            <button className="btn btn-secondary btn-sm" onClick={criarPromocaoComSelecionados} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Percent size={12} /> Criar promoção ({selecionados.size})
             </button>
           )}
           {!souAtendente && (
@@ -435,8 +458,35 @@ export default function Produtos() {
               <Plus size={14} strokeWidth={2.5} /> Novo Produto
             </button>
           )}
-        </div>
+        </div>}
       </div>
+
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '24px' }}>
+        {([['catalogo', 'Catálogo'], ['promocoes', 'Promoções']] as const).map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setAba(id)}
+            style={{
+              padding: '6px 14px', borderRadius: '99px', fontFamily: 'inherit',
+              border: aba === id ? '1px solid #FFFFFF' : '1px solid #2A2A2A',
+              background: aba === id ? 'rgba(255,255,255,0.08)' : 'transparent',
+              color: aba === id ? '#FFFFFF' : '#555',
+              fontSize: '12px', cursor: 'pointer', transition: 'all 0.15s',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {aba === 'promocoes' ? (
+        <PromocoesTab
+          produtos={produtos}
+          souAtendente={souAtendente}
+          produtosIniciais={promocaoComProdutos}
+          onProdutosIniciaisConsumidos={() => setPromocaoComProdutos(null)}
+        />
+      ) : <>
 
       {mostrarFiltroData && (
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
@@ -562,7 +612,14 @@ export default function Produtos() {
                 </div>
               </div>
               {!souAtendente && <span style={{ fontSize: '13px', color: '#555' }}>{formatCurrency(p.preco_custo)}</span>}
-              <span style={{ fontSize: '13px', color: '#A3A3A3', fontWeight: 500 }}>{formatCurrency(p.preco_venda)}</span>
+              <span style={{ fontSize: '13px', color: '#A3A3A3', fontWeight: 500 }}>
+                {formatCurrency(p.preco_venda)}
+                {promoPorProduto.has(p.id) && (
+                  <span title={promoPorProduto.get(p.id)!.promocao_nome} style={{ display: 'block', fontSize: '10px', color: '#FFFFFF', fontWeight: 600 }}>
+                    promo {formatCurrency(promoPorProduto.get(p.id)!.preco_venda)}
+                  </span>
+                )}
+              </span>
               <span style={{ fontSize: '14px', fontWeight: 700, color: '#A3A3A3' }}>
                 {p.estoque_atual} {p.unidade}
               </span>
@@ -667,6 +724,9 @@ export default function Produtos() {
                   <div>
                     <p style={{ fontSize: '10px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>Venda</p>
                     <p style={{ fontSize: '13px', color: '#A3A3A3', fontWeight: 500 }}>{formatCurrency(p.preco_venda)}</p>
+                    {promoPorProduto.has(p.id) && (
+                      <p style={{ fontSize: '11px', color: '#FFFFFF', fontWeight: 600 }}>promo {formatCurrency(promoPorProduto.get(p.id)!.preco_venda)}</p>
+                    )}
                   </div>
                 </div>
 
@@ -703,6 +763,8 @@ export default function Produtos() {
           {busca ? 'Nenhum produto encontrado.' : 'Nenhum produto cadastrado.'}
         </div>
       )}
+
+      </>}
 
       {/* Modal: Novo Produto */}
       <AnimatePresence>

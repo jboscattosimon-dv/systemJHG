@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ShoppingCart, Plus, Minus, Trash2, X, Check, Search, Package, ScanLine, ArrowLeft } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency, formatDate } from '../lib/utils'
+import { aplicarPromocoes, carregarPromocoesVigentes } from '../lib/promocoes'
 import ScannerCamera from '../components/ScannerCamera'
 import VendaDetalheModal from '../components/VendaDetalheModal'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
@@ -91,9 +92,13 @@ export default function Vendas() {
 
   const total = cart.reduce((s, i) => s + precoEfetivo(i) * i.quantidade, 0)
 
+  // Produto em promoção vigente já chega com preco_venda/preco_venda_prazo
+  // promocionais — o resto do PDV (carrinho, a prazo, total) usa direto.
   function carregarProdutos() {
-    return supabase.from('produtos').select('*, tamanhos:produto_tamanhos(*)').eq('ativo', true).order('nome')
-      .then(({ data }) => { if (data) setProdutos(data as Produto[]) })
+    return Promise.all([
+      supabase.from('produtos').select('*, tamanhos:produto_tamanhos(*)').eq('ativo', true).order('nome'),
+      carregarPromocoesVigentes(),
+    ]).then(([{ data }, regras]) => { if (data) setProdutos(aplicarPromocoes(data as Produto[], regras)) })
   }
 
   useEffect(() => {
@@ -521,6 +526,11 @@ export default function Vendas() {
                     <span style={{ fontSize: '11px', color: baixo ? '#A3A3A3' : '#555', flexShrink: 0 }}>{p.estoque_atual} {p.unidade} em estoque</span>
                   )}
                   <span style={{ color: '#FFFFFF', fontWeight: 700, flexShrink: 0, minWidth: '70px', textAlign: 'right' }}>
+                    {p.preco_original != null && (
+                      <span title={p.promocao_nome} style={{ display: 'block', fontSize: '10px', fontWeight: 400, color: '#555', textDecoration: 'line-through' }}>
+                        {formatCurrency(p.preco_original)}
+                      </span>
+                    )}
                     {formatCurrency(p.preco_venda)}
                   </span>
                 </button>

@@ -77,6 +77,10 @@ export interface Produto {
   created_at?: string
   foto_url?: string
   tamanhos?: ProdutoTamanho[]
+  // Preenchidos só no front (lib/promocoes.ts) quando há promoção vigente:
+  // preco_venda já vem com desconto e preco_original guarda o normal.
+  preco_original?: number
+  promocao_nome?: string
 }
 
 export interface Agendamento {
@@ -344,6 +348,7 @@ export interface ItemCondicional {
   tamanho?: string
   quantidade: number
   preco_unitario: number
+  preco_unitario_prazo?: number | null
   status: ItemCondicionalStatus
 }
 
@@ -358,4 +363,36 @@ export interface Condicional {
   fechado_em?: string
   cliente?: Cliente
   itens?: ItemCondicional[]
+}
+
+/* ── Promoções ────────────────────────────────────────────────── */
+
+export interface PromocaoItem {
+  id: string
+  promocao_id: string
+  produto_id: string
+  desconto_percentual?: number | null
+  preco_promocional?: number | null
+}
+
+export interface Promocao {
+  id: string
+  nome: string
+  desconto_percentual: number
+  data_inicio: string
+  data_fim: string
+  ativo: boolean
+  created_at: string
+  itens?: PromocaoItem[]
+}
+
+// Uma linha de promocoes_vigentes(): a regra já resolvida pra um produto
+// (desconto_percentual nulo quando o item usa preço fixo).
+export interface RegraPromocao {
+  produto_id: string
+  promocao_id: string
+  promocao_nome: string
+  data_fim: string
+  desconto_percentual: number | null
+  preco_promocional: number | null
 }

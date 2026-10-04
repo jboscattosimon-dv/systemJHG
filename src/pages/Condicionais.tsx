@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, X, Minus, Trash2, Search, Package, Check, RotateCcw, ScanLine, Info, Pencil } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency, formatDate } from '../lib/utils'
+import { aplicarPromocoes, carregarPromocoesVigentes } from '../lib/promocoes'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
 import { useAuth } from '../hooks/useAuth'
 import { usePerfil } from '../hooks/usePerfil'
@@ -17,7 +18,8 @@ const PAGAMENTOS: { id: PagamentoMetodo; label: string }[] = [
 ]
 
 type Filtro = 'aberto' | 'fechado' | 'todos'
-type ItemNovo = { produto_id: string; nome: string; tamanho?: string; quantidade: number; preco_unitario: number }
+// preco_unitario_prazo: preço a prazo travado quando a peça entrou (mantém a promoção mesmo se ela acabar antes de fechar).
+type ItemNovo = { produto_id: string; nome: string; tamanho?: string; quantidade: number; preco_unitario: number; preco_unitario_prazo?: number | null }
 type SetItens = Dispatch<SetStateAction<ItemNovo[]>>
 type Decisao = 'vendido' | 'devolvido'
 
@@ -72,15 +74,22 @@ export default function Condicionais() {
 
   const carregar = useCallback(() => {
     setLoading(true)
-    let query = supabase.from('condicionais')
-      .select('*, cliente:clientes(nome, telefone), itens:itens_condicional(id, produto_id, nome, tamanho, quantidade, preco_unitario, status)')
-      .order('criado_em', { ascending: false })
-    if (souAtendente && user) query = query.eq('usuario_id', user.id)
-    query.then(({ data, error: err }) => {
-      if (err) { setError(err.message); setLoading(false); return }
-      setCondicionais((data ?? []) as Condicional[])
-      setLoading(false)
-    })
+    const consultar = (colunasItem: string) => {
+      let query = supabase.from('condicionais')
+        .select(`*, cliente:clientes(nome, telefone), itens:itens_condicional(${colunasItem})`)
+        .order('criado_em', { ascending: false })
+      if (souAtendente && user) query = query.eq('usuario_id', user.id)
+      return query
+    }
+    // Sem a migration 20261004000002 aplicada, preco_unitario_prazo ainda
+    // não existe — cai pra consulta antiga em vez de quebrar a tela.
+    consultar('id, produto_id, nome, tamanho, quantidade, preco_unitario, preco_unitario_prazo, status')
+      .then(res => res.error ? consultar('id, produto_id, nome, tamanho, quantidade, preco_unitario, status') : res)
+      .then(({ data, error: err }) => {
+        if (err) { setError(err.message); setLoading(false); return }
+        setCondicionais((data ?? []) as unknown as Condicional[])
+        setLoading(false)
+      })
   }, [souAtendente, user])
 
   useEffect(() => {
@@ -97,8 +106,11 @@ export default function Condicionais() {
     const colunasProduto: string = souAtendente
       ? 'id, nome, categoria, sku, unidade, preco_venda, preco_venda_prazo, estoque_atual, estoque_minimo, estoque_maximo, comissao_percentual, ativo, foto_url, created_at, empresa_id, tamanhos:produto_tamanhos(*)'
       : '*, tamanhos:produto_tamanhos(*)'
-    supabase.from('produtos').select(colunasProduto).eq('ativo', true).order('nome')
-      .then(({ data }) => { if (data) setProdutos(data as unknown as Produto[]) })
+    // Promoção vigente já entra no preço da peça ao montar o condicional.
+    Promise.all([
+      supabase.from('produtos').select(colunasProduto).eq('ativo', true).order('nome'),
+      carregarPromocoesVigentes(),
+    ]).then(([{ data }, regras]) => { if (data) setProdutos(aplicarPromocoes(data as unknown as Produto[], regras)) })
     supabase.from('taxas_cartao_parcelado').select('parcelas, taxa_percentual')
       .then(({ data }) => {
         if (!data) return
@@ -120,9 +132,10 @@ export default function Condicionais() {
   const totalItem = (i: { quantidade: number; preco_unitario: number }) => i.quantidade * i.preco_unitario
   const totalCondicional = (c: Condicional) => (c.itens ?? []).reduce((s, i) => s + totalItem(i), 0)
 
-  // Preço a prazo por peça (cadastrado no produto) — cai pro preço à vista
-  // quando o produto não tem preço a prazo cadastrado.
-  function precoPrazoItem(item: { produto_id: string; preco_unitario: number }): number {
+  // Preço a prazo por peça: o travado quando ela entrou no condicional
+  // (itens antigos não têm) → o cadastrado no produto → o preço à vista.
+  function precoPrazoItem(item: { produto_id: string; preco_unitario: number; preco_unitario_prazo?: number | null }): number {
+    if (item.preco_unitario_prazo != null) return item.preco_unitario_prazo
     const prod = produtos.find(p => p.id === item.produto_id)
     return prod?.preco_venda_prazo ?? item.preco_unitario
   }
@@ -177,7 +190,7 @@ export default function Condicionais() {
     setter(prev => {
       const ex = prev.find(i => i.produto_id === p.id && !i.tamanho)
       if (ex) return prev.map(i => i === ex ? { ...i, quantidade: i.quantidade + 1 } : i)
-      return [...prev, { produto_id: p.id, nome: p.nome, quantidade: 1, preco_unitario: p.preco_venda }]
+      return [...prev, { produto_id: p.id, nome: p.nome, quantidade: 1, preco_unitario: p.preco_venda, preco_unitario_prazo: p.preco_venda_prazo ?? null }]
     })
     setBuscaProduto('')
   }
@@ -186,7 +199,7 @@ export default function Condicionais() {
     setter(prev => {
       const ex = prev.find(i => i.produto_id === p.id && i.tamanho === tamanho)
       if (ex) return prev.map(i => i === ex ? { ...i, quantidade: i.quantidade + 1 } : i)
-      return [...prev, { produto_id: p.id, nome: p.nome, tamanho, quantidade: 1, preco_unitario: p.preco_venda }]
+      return [...prev, { produto_id: p.id, nome: p.nome, tamanho, quantidade: 1, preco_unitario: p.preco_venda, preco_unitario_prazo: p.preco_venda_prazo ?? null }]
     })
     setTamanhoPicker(null)
   }
@@ -229,7 +242,7 @@ export default function Condicionais() {
     setSaving(true); setError('')
     const { error: err } = await supabase.rpc('criar_condicional', {
       p_cliente_id: clienteId,
-      p_itens: itensNovo.map(i => ({ produto_id: i.produto_id, nome: i.nome, tamanho: i.tamanho ?? null, quantidade: i.quantidade, preco_unitario: i.preco_unitario })),
+      p_itens: itensNovo.map(i => ({ produto_id: i.produto_id, nome: i.nome, tamanho: i.tamanho ?? null, quantidade: i.quantidade, preco_unitario: i.preco_unitario, preco_unitario_prazo: i.preco_unitario_prazo ?? null })),
       p_observacao: observacao || null,
     })
     setSaving(false)
@@ -247,7 +260,7 @@ export default function Condicionais() {
     setCondEditar(c)
     setItensEditar((c.itens ?? []).map(i => ({
       produto_id: i.produto_id, nome: i.nome, tamanho: i.tamanho,
-      quantidade: i.quantidade, preco_unitario: i.preco_unitario,
+      quantidade: i.quantidade, preco_unitario: i.preco_unitario, preco_unitario_prazo: i.preco_unitario_prazo,
     })))
     setObservacaoEditar(c.observacao ?? '')
     setBuscaProduto('')
@@ -260,7 +273,7 @@ export default function Condicionais() {
     setSaving(true); setError('')
     const { error: err } = await supabase.rpc('editar_condicional', {
       p_condicional_id: condEditar.id,
-      p_itens: itensEditar.map(i => ({ produto_id: i.produto_id, nome: i.nome, tamanho: i.tamanho ?? null, quantidade: i.quantidade, preco_unitario: i.preco_unitario })),
+      p_itens: itensEditar.map(i => ({ produto_id: i.produto_id, nome: i.nome, tamanho: i.tamanho ?? null, quantidade: i.quantidade, preco_unitario: i.preco_unitario, preco_unitario_prazo: i.preco_unitario_prazo ?? null })),
       p_observacao: observacaoEditar || null,
     })
     setSaving(false)
@@ -304,10 +317,9 @@ export default function Condicionais() {
 
   // No crédito, produto com preço a prazo cadastrado cobra esse valor em vez do preço à vista
   // (mesma regra aplicada de verdade no fechar_condicional, no banco — isso aqui é só a prévia).
-  function precoEfetivoFechar(item: { produto_id: string; preco_unitario: number }): number {
+  function precoEfetivoFechar(item: { produto_id: string; preco_unitario: number; preco_unitario_prazo?: number | null }): number {
     if (pagamento !== 'credito') return item.preco_unitario
-    const prod = produtos.find(p => p.id === item.produto_id)
-    return prod?.preco_venda_prazo ?? item.preco_unitario
+    return precoPrazoItem(item)
   }
 
   const totalVendido = itensFechar.filter(i => decisoes[i.id] === 'vendido').reduce((s, i) => s + precoEfetivoFechar(i) * i.quantidade, 0)
