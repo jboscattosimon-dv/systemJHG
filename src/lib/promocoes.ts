@@ -21,13 +21,15 @@ export async function carregarPromocoesVigentes(): Promise<RegraPromocao[]> {
     ...r,
     desconto_percentual: r.desconto_percentual != null ? Number(r.desconto_percentual) : null,
     preco_promocional: r.preco_promocional != null ? Number(r.preco_promocional) : null,
+    preco_promocional_prazo: r.preco_promocional_prazo != null ? Number(r.preco_promocional_prazo) : null,
   }))
 }
 
 // Troca preco_venda/preco_venda_prazo pelo preço promocional nos
 // produtos em promoção — assim o PDV e o condicional cobram o preço
-// certo sem mudar o resto do fluxo. O preço a prazo recebe o mesmo
-// percentual de desconto que o à vista teve. Com mais de uma promoção
+// certo sem mudar o resto do fluxo. O preço a prazo usa o promocional
+// digitado no item; sem ele, recebe o mesmo percentual de desconto que
+// o à vista teve. Com mais de uma promoção
 // vigente pro mesmo produto, vale a que der o menor preço.
 export function aplicarPromocoes(produtos: Produto[], regras: RegraPromocao[]): Produto[] {
   if (regras.length === 0) return produtos
@@ -48,7 +50,9 @@ export function aplicarPromocoes(produtos: Produto[], regras: RegraPromocao[]): 
     return {
       ...p,
       preco_venda: melhorPreco,
-      preco_venda_prazo: p.preco_venda_prazo != null ? arredondar(p.preco_venda_prazo * fator) : p.preco_venda_prazo,
+      preco_venda_prazo: p.preco_venda_prazo == null ? p.preco_venda_prazo
+        : melhor.preco_promocional_prazo != null ? Math.min(melhor.preco_promocional_prazo, p.preco_venda_prazo)
+        : arredondar(p.preco_venda_prazo * fator),
       preco_original: p.preco_venda,
       promocao_nome: melhor.promocao_nome,
     }

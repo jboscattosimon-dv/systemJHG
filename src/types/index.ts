@@ -373,6 +373,7 @@ export interface PromocaoItem {
   produto_id: string
   desconto_percentual?: number | null
   preco_promocional?: number | null
+  preco_promocional_prazo?: number | null
 }
 
 export interface Promocao {
@@ -395,4 +396,5 @@ export interface RegraPromocao {
   data_fim: string
   desconto_percentual: number | null
   preco_promocional: number | null
+  preco_promocional_prazo: number | null
 }

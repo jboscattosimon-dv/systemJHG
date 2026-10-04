@@ -3,12 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, X, Pencil, Trash2, Percent, Package, Pause, Play } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency, formatDate } from '../lib/utils'
-import { precoVistaComRegra } from '../lib/promocoes'
 import { useModalKeyboard } from '../hooks/useModalKeyboard'
-import type { Produto, Promocao } from '../types'
+import type { Produto, Promocao, PromocaoItem } from '../types'
 
-type ModoDesconto = 'padrao' | 'percentual' | 'fixo'
-interface ItemForm { produto_id: string; modo: ModoDesconto; valor: string }
+// Enquanto não personalizado, o item segue o desconto padrão lá de cima
+// (os três campos são recalculados a partir dele). Ao mexer em qualquer
+// campo do item ele vira personalizado e guarda os valores digitados.
+interface ItemForm { produto_id: string; personalizado: boolean; pct: string; vista: string; prazo: string }
+type ValoresItem = Pick<ItemForm, 'pct' | 'vista' | 'prazo'>
 type StatusPromocao = 'ativa' | 'agendada' | 'encerrada' | 'pausada'
 
 const STATUS_LABEL: Record<StatusPromocao, string> = {
@@ -35,6 +37,35 @@ function statusPromocao(p: Promocao): StatusPromocao {
 }
 
 const FORM_VAZIO = { nome: '', desconto_percentual: '', data_inicio: '', data_fim: '' }
+
+function fmt(n: number): string {
+  return String(Math.round(n * 100) / 100)
+}
+
+function valoresPorPercentual(produto: Produto, pct: number): ValoresItem {
+  return {
+    pct: fmt(pct),
+    vista: fmt(produto.preco_venda * (1 - pct / 100)),
+    prazo: produto.preco_venda_prazo != null ? fmt(produto.preco_venda_prazo * (1 - pct / 100)) : '',
+  }
+}
+
+// Monta o formulário a partir do que está salvo no banco.
+function itemFormDoBanco(item: PromocaoItem, produto: Produto | undefined): ItemForm {
+  const base = { produto_id: item.produto_id }
+  if (!produto) return { ...base, personalizado: false, pct: '', vista: '', prazo: '' }
+  if (item.preco_promocional != null) {
+    const pv = produto.preco_venda
+    const vista = Number(item.preco_promocional)
+    const prazo = item.preco_promocional_prazo != null ? fmt(Number(item.preco_promocional_prazo))
+      : produto.preco_venda_prazo != null && pv > 0 ? fmt(produto.preco_venda_prazo * vista / pv) : ''
+    return { ...base, personalizado: true, vista: fmt(vista), prazo, pct: pv > 0 ? fmt((1 - vista / pv) * 100) : '' }
+  }
+  if (item.desconto_percentual != null) {
+    return { ...base, personalizado: true, ...valoresPorPercentual(produto, Number(item.desconto_percentual)) }
+  }
+  return { ...base, personalizado: false, pct: '', vista: '', prazo: '' }
+}
 
 interface Props {
   produtos: Produto[]
@@ -79,7 +110,7 @@ export default function PromocoesTab({ produtos, souAtendente, produtosIniciais,
   function abrirNova(produtoIds: string[] = []) {
     setEditId(null)
     setForm({ ...FORM_VAZIO, data_inicio: hojeLocal(), data_fim: hojeLocal(7) })
-    setItens(produtoIds.map(id => ({ produto_id: id, modo: 'padrao', valor: '' })))
+    setItens(produtoIds.map(id => ({ produto_id: id, personalizado: false, pct: '', vista: '', prazo: '' })))
     setBuscaProduto(''); setErroModal('')
     setShowModal(true)
   }
@@ -92,11 +123,7 @@ export default function PromocoesTab({ produtos, souAtendente, produtosIniciais,
       data_inicio: p.data_inicio,
       data_fim: p.data_fim,
     })
-    setItens((p.itens ?? []).map(i => (
-      i.preco_promocional != null ? { produto_id: i.produto_id, modo: 'fixo', valor: String(i.preco_promocional) }
-      : i.desconto_percentual != null ? { produto_id: i.produto_id, modo: 'percentual', valor: String(i.desconto_percentual) }
-      : { produto_id: i.produto_id, modo: 'padrao', valor: '' }
-    )))
+    setItens((p.itens ?? []).map(i => itemFormDoBanco(i, produtoPorId.get(i.produto_id))))
     setBuscaProduto(''); setErroModal('')
     setShowModal(true)
   }
@@ -107,12 +134,8 @@ export default function PromocoesTab({ produtos, souAtendente, produtosIniciais,
   }
 
   function addItem(p: Produto) {
-    setItens(prev => prev.some(i => i.produto_id === p.id) ? prev : [...prev, { produto_id: p.id, modo: 'padrao', valor: '' }])
+    setItens(prev => prev.some(i => i.produto_id === p.id) ? prev : [...prev, { produto_id: p.id, personalizado: false, pct: '', vista: '', prazo: '' }])
     setBuscaProduto('')
-  }
-
-  function updateItem(produtoId: string, patch: Partial<ItemForm>) {
-    setItens(prev => prev.map(i => i.produto_id === produtoId ? { ...i, ...patch } : i))
   }
 
   function removeItem(produtoId: string) {
@@ -121,10 +144,36 @@ export default function PromocoesTab({ produtos, souAtendente, produtosIniciais,
 
   const descontoPadrao = Number(form.desconto_percentual) || 0
 
-  function precoFinalItem(item: ItemForm, produto: Produto): number {
-    if (item.modo === 'fixo') return precoVistaComRegra(produto.preco_venda, { desconto_percentual: null, preco_promocional: Number(item.valor) || 0 })
-    const pct = item.modo === 'percentual' ? Number(item.valor) || 0 : descontoPadrao
-    return precoVistaComRegra(produto.preco_venda, { desconto_percentual: pct, preco_promocional: null })
+  // O que aparece nos campos do item: o digitado, ou o calculado pelo padrão.
+  function valoresItem(item: ItemForm, produto: Produto): ValoresItem {
+    return item.personalizado ? item : valoresPorPercentual(produto, descontoPadrao)
+  }
+
+  function alterarItem(item: ItemForm, produto: Produto, campo: keyof ValoresItem, valor: string) {
+    const atual = valoresItem(item, produto)
+    const pv = produto.preco_venda
+    const ppz = produto.preco_venda_prazo
+    const n = Number(valor)
+    const vazio = valor.trim() === '' || !Number.isFinite(n)
+    let novo: ValoresItem
+    if (campo === 'pct') {
+      // % → recalcula à vista e a prazo
+      novo = vazio ? { pct: valor, vista: '', prazo: '' } : { ...valoresPorPercentual(produto, n), pct: valor }
+    } else if (campo === 'vista') {
+      // À vista → a prazo acompanha na mesma proporção, e o % é recalculado
+      novo = {
+        vista: valor,
+        pct: !vazio && pv > 0 ? fmt((1 - n / pv) * 100) : '',
+        prazo: !vazio && ppz != null && pv > 0 ? fmt(ppz * n / pv) : atual.prazo,
+      }
+    } else {
+      novo = { ...atual, prazo: valor }
+    }
+    setItens(prev => prev.map(i => i.produto_id === item.produto_id ? { ...i, ...novo, personalizado: true } : i))
+  }
+
+  function voltarAoPadrao(produtoId: string) {
+    setItens(prev => prev.map(i => i.produto_id === produtoId ? { ...i, personalizado: false } : i))
   }
 
   const produtosBusca = useMemo(() => {
@@ -144,13 +193,17 @@ export default function PromocoesTab({ produtos, souAtendente, produtosIniciais,
     if (descontoPadrao < 0 || descontoPadrao > 100) { setErroModal('O desconto padrão deve ficar entre 0% e 100%.'); return }
     if (itens.length === 0) { setErroModal('Adicione pelo menos um produto.'); return }
     for (const item of itens) {
-      const nome = produtoPorId.get(item.produto_id)?.nome ?? 'produto'
-      if (item.modo === 'padrao') continue
-      const v = Number(item.valor)
-      if (item.valor.trim() === '' || !Number.isFinite(v) || v < 0) { setErroModal(`Informe o desconto de "${nome}".`); return }
-      if (item.modo === 'percentual' && v > 100) { setErroModal(`O desconto de "${nome}" deve ficar entre 0% e 100%.`); return }
+      const produto = produtoPorId.get(item.produto_id)
+      if (!item.personalizado || !produto) continue
+      const vista = Number(item.vista)
+      if (item.vista.trim() === '' || !Number.isFinite(vista) || vista < 0) { setErroModal(`Informe o preço à vista de "${produto.nome}".`); return }
+      if (vista > produto.preco_venda) { setErroModal(`O preço à vista de "${produto.nome}" ficou maior que o normal.`); return }
+      if (item.prazo.trim() !== '') {
+        const prazo = Number(item.prazo)
+        if (!Number.isFinite(prazo) || prazo < 0) { setErroModal(`Preço a prazo inválido em "${produto.nome}".`); return }
+      }
     }
-    if (descontoPadrao === 0 && itens.some(i => i.modo === 'padrao')) {
+    if (descontoPadrao === 0 && itens.some(i => !i.personalizado)) {
       setErroModal('Há produtos usando o desconto padrão, mas ele está em 0%.'); return
     }
 
@@ -174,11 +227,14 @@ export default function PromocoesTab({ produtos, souAtendente, produtosIniciais,
       promocaoId = (data as { id: string }).id
     }
 
+    // Item no padrão salva tudo nulo (segue o % da promoção); personalizado
+    // salva os preços digitados — o % do item é só exibição.
     const { error: errItens } = await supabase.from('promocao_itens').insert(itens.map(i => ({
       promocao_id: promocaoId,
       produto_id: i.produto_id,
-      desconto_percentual: i.modo === 'percentual' ? Number(i.valor) : null,
-      preco_promocional: i.modo === 'fixo' ? Number(i.valor) : null,
+      desconto_percentual: null,
+      preco_promocional: i.personalizado ? Number(i.vista) : null,
+      preco_promocional_prazo: i.personalizado && i.prazo.trim() !== '' ? Number(i.prazo) : null,
     })))
     if (errItens) { setErroModal(errItens.message); setSaving(false); return }
 
@@ -380,14 +436,28 @@ export default function PromocoesTab({ produtos, souAtendente, produtosIniciais,
                       {itens.map(item => {
                         const produto = produtoPorId.get(item.produto_id)
                         if (!produto) return null
-                        const precoFinal = precoFinalItem(item, produto)
+                        const valores = valoresItem(item, produto)
+                        const semPrazo = produto.preco_venda_prazo == null
+                        const campo = (rotulo: string, chave: keyof ValoresItem, step: string, desabilitado = false) => (
+                          <div style={{ minWidth: 0 }}>
+                            <label style={{ display: 'block', fontSize: '10px', color: '#555', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>{rotulo}</label>
+                            <input
+                              className="input"
+                              style={{ padding: '8px 10px', minHeight: '38px' }}
+                              type="number" inputMode="decimal" min={0} step={step}
+                              placeholder={desabilitado ? '—' : undefined}
+                              disabled={desabilitado}
+                              value={desabilitado ? '' : valores[chave]}
+                              onChange={e => alterarItem(item, produto, chave, e.target.value)}
+                            />
+                          </div>
+                        )
                         return (
                           <div key={item.produto_id} style={{
-                            display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap',
                             padding: '10px 12px', borderRadius: '8px',
                             background: 'rgba(255,255,255,0.03)', border: '1px solid #252525',
                           }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 180px', minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                               {produto.foto_url ? (
                                 <img src={produto.foto_url} alt="" style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'cover', flexShrink: 0, border: '1px solid #2A2A2A' }} />
                               ) : (
@@ -395,35 +465,25 @@ export default function PromocoesTab({ produtos, souAtendente, produtosIniciais,
                                   <Package size={13} style={{ color: '#444' }} />
                                 </div>
                               )}
-                              <div style={{ minWidth: 0 }}>
+                              <div style={{ minWidth: 0, flex: 1 }}>
                                 <p style={{ fontSize: '12px', fontWeight: 500, color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{produto.nome}</p>
                                 <p style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>
-                                  <span style={{ textDecoration: precoFinal < produto.preco_venda ? 'line-through' : 'none' }}>{formatCurrency(produto.preco_venda)}</span>
-                                  {precoFinal < produto.preco_venda && <strong style={{ color: '#FFFFFF', marginLeft: '6px' }}>{formatCurrency(precoFinal)}</strong>}
+                                  Normal: {formatCurrency(produto.preco_venda)} à vista
+                                  {!semPrazo && ` · ${formatCurrency(produto.preco_venda_prazo!)} a prazo`}
                                 </p>
                               </div>
+                              {item.personalizado && (
+                                <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '4px 8px', minHeight: 0, fontSize: '11px' }} onClick={() => voltarAoPadrao(item.produto_id)}>
+                                  Usar padrão
+                                </button>
+                              )}
+                              <button className="btn btn-icon" title="Tirar da promoção" onClick={() => removeItem(item.produto_id)}><Trash2 size={12} /></button>
                             </div>
-                            <select
-                              className="input"
-                              style={{ width: '130px', padding: '6px 8px', fontSize: '12px' }}
-                              value={item.modo}
-                              onChange={e => updateItem(item.produto_id, { modo: e.target.value as ModoDesconto, valor: '' })}
-                            >
-                              <option value="padrao">Padrão ({descontoPadrao}%)</option>
-                              <option value="percentual">Desconto %</option>
-                              <option value="fixo">Preço fixo</option>
-                            </select>
-                            {item.modo !== 'padrao' && (
-                              <input
-                                className="input"
-                                style={{ width: '90px', padding: '6px 8px', fontSize: '12px' }}
-                                type="number" min={0} max={item.modo === 'percentual' ? 100 : undefined} step={item.modo === 'percentual' ? 0.5 : 0.01}
-                                placeholder={item.modo === 'percentual' ? '%' : 'R$'}
-                                value={item.valor}
-                                onChange={e => updateItem(item.produto_id, { valor: e.target.value })}
-                              />
-                            )}
-                            <button className="btn btn-icon" title="Tirar da promoção" onClick={() => removeItem(item.produto_id)}><Trash2 size={12} /></button>
+                            <div style={{ display: 'grid', gridTemplateColumns: '0.8fr 1fr 1fr', gap: '8px', marginTop: '10px' }}>
+                              {campo('Desconto %', 'pct', '0.5')}
+                              {campo('Promo à vista', 'vista', '0.01')}
+                              {campo('Promo a prazo', 'prazo', '0.01', semPrazo)}
+                            </div>
                           </div>
                         )
                       })}
