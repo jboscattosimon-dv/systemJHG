@@ -119,7 +119,7 @@ export default function Auditoria() {
           <div key={l.id}>
             <motion.div
               className="list-row"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.01 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: Math.min(i, 10) * 0.01 }}
               onClick={() => setExpandido(expandido === l.id ? null : l.id)}
               style={{
                 display: 'grid', gridTemplateColumns: '24px 120px 90px 1fr 180px 160px',

@@ -232,7 +232,7 @@ export default function Financeiro() {
               className="card"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.07 }}
+              transition={{ delay: Math.min(i, 10) * 0.07 }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
                 <Icon size={15} style={{ color: '#555' }} />

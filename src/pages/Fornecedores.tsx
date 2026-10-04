@@ -163,7 +163,7 @@ export default function Fornecedores() {
             className="list-row"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: i * 0.03 }}
+            transition={{ delay: Math.min(i, 10) * 0.03 }}
             style={{
               display: 'grid',
               gridTemplateColumns: '1fr 160px 220px 90px 40px',
@@ -226,7 +226,7 @@ export default function Fornecedores() {
               className="card entity-card"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.04 }}
+              transition={{ delay: Math.min(i, 10) * 0.04 }}
             >
               <div className="entity-header" style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
                 <div className="entity-avatar" style={{

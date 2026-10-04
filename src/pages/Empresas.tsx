@@ -86,7 +86,7 @@ export default function Empresas() {
           <motion.div
             key={e.id}
             className="list-row"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: Math.min(i, 10) * 0.03 }}
             onClick={() => navigate(`/empresas/${e.id}`)}
             style={{
               display: 'grid', gridTemplateColumns: '1fr 130px 160px 90px 20px',

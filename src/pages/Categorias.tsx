@@ -181,7 +181,7 @@ export default function Categorias() {
                 <motion.div
                   key={f.id}
                   className="list-row"
-                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: Math.min(i, 10) * 0.03 }}
                   style={{
                     display: 'grid', gridTemplateColumns: '1fr 90px 130px',
                     padding: '12px 24px', alignItems: 'center',
@@ -321,7 +321,7 @@ function ListaCategorias({ itens, onEditar, onToggle, onExcluir, vazio }: {
         <motion.div
           key={c.id}
           className="list-row"
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: Math.min(i, 10) * 0.03 }}
           style={{
             display: 'grid', gridTemplateColumns: '1fr 90px 130px',
             padding: '12px 24px', alignItems: 'center',

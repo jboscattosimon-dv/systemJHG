@@ -210,7 +210,7 @@ function ListaView({
               key={ag.id}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
+              transition={{ delay: Math.min(i, 10) * 0.05 }}
               style={{
                 display: 'flex', gap: '20px', padding: '18px 24px',
                 borderBottom: i < filtrado.length - 1 ? '1px solid #1F1F1F' : 'none',
@@ -560,7 +560,7 @@ function MensalView({
                 onClick={() => onDayClick(d)}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: i * 0.004 }}
+                transition={{ delay: Math.min(i, 10) * 0.004 }}
                 style={{
                   minHeight: '90px',
                   padding: '8px',

@@ -523,7 +523,7 @@ export default function Condicionais() {
           <motion.div
             key={c.id}
             className="list-row"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: Math.min(i, 10) * 0.03 }}
             onClick={() => abrirDetalhe(c)}
             style={{
               display: 'grid', gridTemplateColumns: '1fr 100px 130px 110px 160px',
@@ -561,7 +561,7 @@ export default function Condicionais() {
             <motion.div
               key={c.id}
               className="card entity-card"
-              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 10) * 0.04 }}
               onClick={() => abrirDetalhe(c)}
               style={{ cursor: 'pointer' }}
             >

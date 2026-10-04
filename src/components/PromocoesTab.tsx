@@ -297,7 +297,7 @@ export default function PromocoesTab({ produtos, souAtendente, produtosIniciais,
               <motion.div
                 key={p.id}
                 className="card entity-card"
-                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 10) * 0.04 }}
                 style={{ opacity: status === 'encerrada' ? 0.6 : 1 }}
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>

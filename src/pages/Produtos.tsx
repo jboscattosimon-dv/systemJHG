@@ -565,7 +565,7 @@ export default function Produtos() {
             <motion.div
               key={p.id}
               className="list-row"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: Math.min(i, 10) * 0.03 }}
               style={{
                 display: 'grid',
                 gridTemplateColumns: souAtendente ? '28px 1fr 120px 90px 80px 76px' : '28px 1fr 120px 120px 90px 80px 76px',
@@ -663,7 +663,7 @@ export default function Produtos() {
               <motion.div
                 key={p.id}
                 className="card entity-card"
-                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 10) * 0.04 }}
                 style={{ cursor: 'pointer' }}
                 onClick={() => setProdutoDetalhe(p)}
               >

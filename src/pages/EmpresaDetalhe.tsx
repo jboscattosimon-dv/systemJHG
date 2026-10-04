@@ -200,7 +200,7 @@ export default function EmpresaDetalhe() {
           <motion.div
             key={u.usuario_id}
             className="list-row"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: Math.min(i, 10) * 0.02 }}
             style={{
               display: 'grid', gridTemplateColumns: '1fr 140px 90px 100px 90px 90px 90px',
               padding: '12px 24px', alignItems: 'center',
@@ -264,7 +264,7 @@ export default function EmpresaDetalhe() {
           <motion.div
             key={u.usuario_id}
             className="list-row"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: Math.min(i, 10) * 0.02 }}
             style={{
               display: 'grid', gridTemplateColumns: '1fr 140px 130px 100px',
               padding: '12px 24px', alignItems: 'center',

@@ -182,7 +182,7 @@ export default function Dashboard() {
               onClick={() => navigate(s.to)}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.06, duration: 0.3 }}
+              transition={{ delay: Math.min(i, 10) * 0.06, duration: 0.3 }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <div style={{
