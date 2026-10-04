@@ -461,13 +461,15 @@ export default function Produtos() {
         </div>}
       </div>
 
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '24px', position: 'relative', zIndex: 1 }}>
         {([['catalogo', 'Catálogo'], ['promocoes', 'Promoções']] as const).map(([id, label]) => (
           <button
             key={id}
             onClick={() => setAba(id)}
             style={{
-              padding: '6px 14px', borderRadius: '99px', fontFamily: 'inherit',
+              // Área de toque maior pro celular (antes só pegava clicando um pouco abaixo).
+              minHeight: '40px', padding: '8px 16px', touchAction: 'manipulation',
+              borderRadius: '99px', fontFamily: 'inherit',
               border: aba === id ? '1px solid #FFFFFF' : '1px solid #2A2A2A',
               background: aba === id ? 'rgba(255,255,255,0.08)' : 'transparent',
               color: aba === id ? '#FFFFFF' : '#555',

@@ -304,7 +304,7 @@ export default function PromocoesTab({ produtos, souAtendente, produtosIniciais,
             <motion.div
               ref={modalRef}
               className="card"
-              style={{ width: '100%', maxWidth: '620px', padding: '28px', maxHeight: '88vh', overflowY: 'auto' }}
+              style={{ width: '100%', maxWidth: '620px', padding: 'clamp(18px, 5vw, 28px)', maxHeight: '88vh', overflowY: 'auto', overflowX: 'hidden' }}
               initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 16 }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
@@ -317,16 +317,16 @@ export default function PromocoesTab({ produtos, souAtendente, produtosIniciais,
                   <label className="label">Nome *</label>
                   <input className="input" placeholder="Ex: Queima de estoque inverno" value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
-                  <div className="field">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', gap: '12px' }}>
+                  <div className="field" style={{ minWidth: 0 }}>
                     <label className="label">Início *</label>
                     <input className="input" type="date" value={form.data_inicio} onChange={e => setForm(f => ({ ...f, data_inicio: e.target.value }))} />
                   </div>
-                  <div className="field">
+                  <div className="field" style={{ minWidth: 0 }}>
                     <label className="label">Fim *</label>
                     <input className="input" type="date" min={form.data_inicio || undefined} value={form.data_fim} onChange={e => setForm(f => ({ ...f, data_fim: e.target.value }))} />
                   </div>
-                  <div className="field">
+                  <div className="field" style={{ minWidth: 0 }}>
                     <label className="label">Desconto padrão (%)</label>
                     <input className="input" type="number" min={0} max={100} step={0.5} placeholder="Ex: 20" value={form.desconto_percentual} onChange={e => setForm(f => ({ ...f, desconto_percentual: e.target.value }))} />
                   </div>
@@ -432,10 +432,12 @@ export default function PromocoesTab({ produtos, souAtendente, produtosIniciais,
                 </div>
 
                 {erroModal && <p style={{ fontSize: '12px', color: '#666' }}>{erroModal}</p>}
-                <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={fecharModal}>Cancelar (Esc)</button>
-                  <button className="btn btn-primary" style={{ flex: 1 }} onClick={salvar} disabled={saving}>
-                    {saving ? 'Salvando...' : `${editId ? 'Salvar' : 'Criar promoção'} (F10)`}
+                <div className="modal-actions" style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                  <button className="btn btn-secondary" style={{ flex: 1, minWidth: 0 }} onClick={fecharModal}>
+                    Cancelar <span className="shortcut-hint">(Esc)</span>
+                  </button>
+                  <button className="btn btn-primary" style={{ flex: 1, minWidth: 0 }} onClick={salvar} disabled={saving}>
+                    {saving ? 'Salvando...' : <>{editId ? 'Salvar' : 'Criar promoção'} <span className="shortcut-hint">(F10)</span></>}
                   </button>
                 </div>
               </div>
